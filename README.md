@@ -1,4 +1,4 @@
-# piccco - 记事、收藏、URL和书签应用
+# piccco3 - 记事、收藏、URL和书签应用
 
 一款现代化的记事、收藏、保存URL和书签应用，采用简洁美观的UI设计。
 
@@ -39,9 +39,11 @@
 - **星标系统**：星标文件夹和记事会置顶显示
 - **用户系统**：支持登录注册，每个用户数据隔离
 - **隐私保护**：隐私文件夹需要密码才能访问
+- **多平台同步**：支持多设备数据同步
 
 ## 技术栈
 
+### 前端
 - React 18
 - TypeScript
 - React Router
@@ -49,17 +51,27 @@
 - Vite（构建工具）
 - date-fns（日期处理）
 
+### 后端
+- Node.js
+- Express
+- JWT认证
+- bcrypt密码加密
+- 文件系统存储
+
 ## 安装和运行
 
-### 安装依赖
+### 后端
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+### 前端
 
 ```bash
 npm install
-```
-
-### 开发模式
-
-```bash
 npm run dev
 ```
 
@@ -69,48 +81,24 @@ npm run dev
 npm run build
 ```
 
-### 预览生产版本
-
-```bash
-npm run preview
-```
-
 ## 项目结构
 
 ```
 piccco3/
-├── src/
-│   ├── components/      # 可复用组件
-│   │   ├── Layout.tsx
-│   │   ├── TopBar.tsx
-│   │   ├── BottomNav.tsx
-│   │   ├── ListItem.tsx
-│   │   ├── FolderIcon.tsx
-│   │   ├── Modal.tsx
-│   │   ├── ContextMenu.tsx
-│   │   └── PasswordModal.tsx
+├── backend/            # 后端服务
+│   ├── src/
+│   │   ├── routes/     # API路由
+│   │   ├── store/      # 数据存储
+│   │   ├── middleware/ # 中间件
+│   │   └── utils/      # 工具函数
+│   └── package.json
+├── src/                # 前端代码
+│   ├── components/     # 可复用组件
 │   ├── pages/          # 页面组件
-│   │   ├── LoginPage.tsx
-│   │   ├── HomePage.tsx
-│   │   ├── AllPage.tsx
-│   │   ├── UrlPage.tsx
-│   │   ├── CategoryPage.tsx
-│   │   ├── MePage.tsx
-│   │   └── TrashPage.tsx
 │   ├── stores/         # Zustand状态管理
-│   │   ├── userStore.ts
-│   │   └── dataStore.ts
-│   ├── types/          # TypeScript类型定义
-│   │   └── index.ts
-│   ├── styles/         # 全局样式
-│   │   ├── global.css
-│   │   └── colors.css
-│   ├── App.tsx         # 主应用组件
-│   └── main.tsx        # 入口文件
-├── index.html
+│   └── utils/          # 工具函数
 ├── package.json
-├── tsconfig.json
-└── vite.config.ts
+└── README.md
 ```
 
 ## 使用说明
@@ -122,36 +110,22 @@ piccco3/
 5. **收藏网址**：在"网址"页面添加网址
 6. **管理文件**：右键点击项目可以重命名、编辑、删除或添加星标
 7. **隐私文件夹**：创建隐私文件夹时需要设置密码，访问时需要输入密码
+8. **数据同步**：数据自动同步到服务器，支持多设备访问
 
 ## 数据存储
 
-应用使用 Zustand 的 persist 中间件将数据存储在浏览器的 localStorage 中。每个用户的数据是隔离的。
+- **前端**：使用 Zustand 的 persist 中间件将数据存储在浏览器的 localStorage 中
+- **后端**：用户数据存储在服务器文件系统中，每个用户数据隔离
+- **同步**：支持多设备数据同步，自动合并冲突
 
-## 注意事项
+## 安全特性
 
-- 隐私文件夹的密码目前以明文形式存储（实际应用中应加密）
-- 回收站中的文件会在30天后自动清理
-- 数据存储在浏览器本地，清除浏览器数据会丢失所有数据
-
-## 开发计划
-
-- [ ] 添加后端API支持
-- [ ] 实现数据加密
-- [ ] 添加搜索功能
-- [ ] 支持文件夹嵌套
-- [ ] 添加导出/导入功能
-- [ ] 支持多设备同步
+- JWT Token认证
+- bcrypt密码加密
+- 管理员密码保护
+- 输入验证和速率限制
+- 文件权限保护
 
 ## 许可证
 
 MIT License
-
-
-
-
-
-
-
-
-
-
