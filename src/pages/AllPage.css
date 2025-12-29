@@ -1,0 +1,138 @@
+.all-page {
+  padding: 20px;
+}
+
+.folder-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px 0;
+}
+
+.folder-back-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 4px 12px;
+}
+
+.folder-header-spacer {
+  width: 32px;
+}
+
+.page-title {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: var(--text-color);
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notes-list > div,
+.notes-list > * {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-tertiary);
+  font-size: 16px;
+}
+
+.edit-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-note-input {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 16px;
+  font-family: inherit;
+  resize: vertical;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.edit-note-input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.edit-note-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.form-button {
+  padding: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-button:hover {
+  opacity: 0.9;
+}
+
+.add-note-button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.add-note-button:hover {
+  opacity: 0.9;
+}
+
+.form-checkbox-group {
+  margin: 12px 0;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+

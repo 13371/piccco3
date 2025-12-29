@@ -1,0 +1,104 @@
+// 用户数据存储（笔记、文件夹、URL）
+const path = require('path');
+const { readJsonFile, writeJsonFile, ensureDir } = require('../utils/fileStore');
+
+const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const USER_DATA_DIR = path.join(DATA_DIR, 'user-data');
+
+// 确保目录存在
+ensureDir(USER_DATA_DIR);
+
+/**
+ * 获取用户数据文件路径（防止路径遍历攻击）
+ */
+function getUserDataFile(userId) {
+  // 验证userId格式（只允许数字）
+  if (!userId || typeof userId !== 'string' || !/^\d+$/.test(userId)) {
+    throw new Error('Invalid userId format');
+  }
+  // 使用basename防止路径遍历
+  const safeUserId = path.basename(userId);
+  return path.join(USER_DATA_DIR, `${safeUserId}.json`);
+}
+
+/**
+ * 读取用户数据
+ */
+function readUserData(userId) {
+  const filePath = getUserDataFile(userId);
+  const defaultData = {
+    folders: [],
+    notes: [],
+    urls: [],
+    trash: [],
+    lastSyncAt: null,
+  };
+  return readJsonFile(filePath, defaultData);
+}
+
+/**
+ * 写入用户数据
+ */
+function writeUserData(userId, data) {
+  const filePath = getUserDataFile(userId);
+  // 添加同步时间戳
+  data.lastSyncAt = Date.now();
+  const success = writeJsonFile(filePath, data, true);
+  if (!success) {
+    throw new Error('写入用户数据失败');
+  }
+  return data;
+}
+
+/**
+ * 获取用户数据（完整数据）
+ */
+function getUserData(userId) {
+  return readUserData(userId);
+}
+
+/**
+ * 保存用户数据（完整数据）
+ */
+function saveUserData(userId, data) {
+  return writeUserData(userId, data);
+}
+
+/**
+ * 更新用户数据（部分更新）
+ */
+function updateUserData(userId, updates) {
+  const currentData = readUserData(userId);
+  const updatedData = {
+    ...currentData,
+    ...updates,
+    lastSyncAt: Date.now(),
+  };
+  return writeUserData(userId, updatedData);
+}
+
+/**
+ * 删除用户数据
+ */
+function deleteUserData(userId) {
+  const filePath = getUserDataFile(userId);
+  const fs = require('fs');
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error(`[userDataStore] 删除用户数据失败 ${userId}:`, e);
+    return false;
+  }
+}
+
+module.exports = {
+  getUserData,
+  saveUserData,
+  updateUserData,
+  deleteUserData,
+};
+

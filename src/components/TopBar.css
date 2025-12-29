@@ -1,0 +1,74 @@
+.top-bar {
+  background-color: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 8px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.top-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.top-bar-row.single-row {
+  padding: 8px 0;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-icon {
+  font-size: 16px;
+}
+
+.ip-address {
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.refresh-btn,
+.add-btn,
+.search-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.add-btn {
+  color: var(--color-purple);
+}
+
+.add-btn:hover {
+  transform: scale(1.1);
+}
+
+.search-btn {
+  color: var(--primary-color); /* 蓝色 */
+}
+
+.search-btn:hover {
+  transform: scale(1.1);
+}
+
+.app-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--text-color);
+  margin: 0;
+  text-transform: lowercase;
+}
+
+

@@ -1,0 +1,166 @@
+:root {
+  --primary-color: #007AFF;
+  --bg-color: #FFFFFF;
+  --text-color: #000000;
+  --border-color: #E5E5E5;
+  --hover-bg: #F5F5F5;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --font-scale: 1;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --shadow-light: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  
+  /* 文件夹颜色 */
+  --color-red: #FF3B30;
+  --color-orange: #FF9500;
+  --color-yellow: #FFCC00;
+  --color-green: #34C759;
+  --color-cyan: #5AC8FA;
+  --color-blue: #007AFF;
+  --color-purple: #AF52DE;
+}
+
+/* 深色主题 */
+[data-theme="dark"] {
+  --primary-color: #0A84FF;
+  --bg-color: #1C1C1E;
+  --text-color: #E5E5EA;
+  --border-color: #48484A;
+  --hover-bg: #2C2C2E;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --text-secondary: #98989D;
+  --text-tertiary: #636366;
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --shadow-light: 0 -2px 8px rgba(0, 0, 0, 0.3);
+  
+  /* 深色模式下的文件夹颜色 */
+  --color-red: #FF453A;
+  --color-orange: #FF9F0A;
+  --color-yellow: #FFD60A;
+  --color-green: #32D74B;
+  --color-cyan: #64D2FF;
+  --color-blue: #0A84FF;
+  --color-purple: #BF5AF2;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-size: calc(16px * var(--font-scale));
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 统一的返回按钮样式 */
+.page-back-button {
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: none;
+  background-color: var(--primary-color);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.page-back-button:hover {
+  opacity: 0.9;
+}
+
+/* 统一的页面头部样式 */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-header.with-right-action {
+  justify-content: space-between;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-color);
+}
+
+/* 全局输入框和选择框样式（适配深色模式） */
+input,
+textarea,
+select {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+select option {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* 链接样式 */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* 按钮基础样式 */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+
+
+
+
+

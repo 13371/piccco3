@@ -1,0 +1,65 @@
+.about-page {
+  padding: 20px;
+}
+
+.about-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  margin-top: 40px;
+}
+
+.about-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.about-logo-icon {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.about-app-name {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.about-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background-color: var(--hover-bg);
+  border-radius: 12px;
+}
+
+.about-info-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.about-info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+
+
+
+
+
+

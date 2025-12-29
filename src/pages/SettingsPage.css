@@ -1,0 +1,86 @@
+.settings-page {
+  padding: 20px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-list > * {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sort-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sort-option {
+  padding: 4px 0;
+}
+
+.sort-option label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.sort-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.settings-message-box {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 12px;
+  background-color: var(--hover-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-message-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.settings-message-input,
+.settings-message-textarea {
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.settings-message-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.settings-message-send {
+  align-self: flex-end;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: none;
+  background-color: var(--primary-color);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+
+

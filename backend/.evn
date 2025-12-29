@@ -1,0 +1,12 @@
+PORT=4000
+JWT_SECRET=请改成一串随机字符串
+
+# 邮件发信配置（根据你用的服务来填，比如阿里云邮件推送的 SMTP）
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=no-reply@example.com
+SMTP_PASS=你的SMTP密码
+
+# 前端地址（本地开发）
+FRONTEND_ORIGIN=http://localhost:5173

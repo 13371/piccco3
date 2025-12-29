@@ -1,0 +1,68 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment variables (敏感信息)
+.env
+.env.local
+.env.production
+.env.development
+
+# 后端数据文件（包含用户数据，不应提交）
+backend/data/
+backend/data/**/*.json
+!backend/data/.gitkeep
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Build outputs
+build/
+*.tsbuildinfo
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# 文档生成
+docs/
+
+
+
+
+
+
+
+
+
+

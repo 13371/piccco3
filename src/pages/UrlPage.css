@@ -1,0 +1,196 @@
+.url-page {
+  padding: 20px;
+}
+
+.folder-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px 0;
+}
+
+.folder-back-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 4px 12px;
+}
+
+.folder-header-spacer {
+  width: 32px;
+}
+
+.folder-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.folder-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-color);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.folder-tab:hover {
+  background-color: var(--hover-bg);
+}
+
+.folder-tab.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.add-folder-tab {
+  border-style: dashed;
+  font-size: 18px;
+  padding: 8px 12px;
+}
+
+.add-url-button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.add-url-button:hover {
+  opacity: 0.9;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.create-folder-link {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  padding: 4px 0;
+  text-decoration: underline;
+}
+
+.create-folder-link:hover {
+  opacity: 0.8;
+}
+
+.folders-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-item-wrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.color-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.color-option {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-option:hover {
+  border-color: var(--text-color);
+  transform: scale(1.05);
+}
+
+.url-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.url-list > * {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.add-url-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-input {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 16px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.form-input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 下拉菜单选项样式 */
+.form-input option {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.form-button {
+  padding: 12px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-button:hover {
+  opacity: 0.9;
+}
+

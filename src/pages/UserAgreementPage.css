@@ -1,0 +1,107 @@
+.user-agreement-page {
+  padding: 20px;
+}
+
+.agreement-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.agreement-intro {
+  padding: 20px;
+  background-color: var(--hover-bg);
+  border-radius: 12px;
+  border-left: 4px solid var(--primary-color);
+}
+
+.agreement-update-date {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+}
+
+.agreement-intro-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.agreement-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agreement-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.agreement-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-color);
+  margin: 0;
+  text-align: justify;
+}
+
+.agreement-list {
+  margin: 8px 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agreement-list li {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-color);
+  text-align: justify;
+}
+
+.agreement-contact-info {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-color);
+  margin: 8px 0 0 0;
+}
+
+.agreement-link {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.agreement-link:hover {
+  text-decoration: underline;
+}
+
+.agreement-footer {
+  margin-top: 32px;
+  padding: 20px;
+  background-color: var(--hover-bg);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.agreement-footer-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+
+
+
+
+
+
