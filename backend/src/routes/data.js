@@ -124,3 +124,4 @@ router.get('/sync/last', authenticateToken, (req, res) => {
 module.exports = router;
 
 
+
