@@ -18,7 +18,6 @@ const DeviceManagementPage = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const currentUser = useUserStore((state) => state.currentUser);
-  const logout = useUserStore((state) => state.logout);
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
 
   useEffect(() => {
@@ -43,7 +42,7 @@ const DeviceManagementPage = () => {
     ]);
   }, [currentUser]);
 
-  const handleOffline = (id: string, isCurrent: boolean) => {
+  const handleOffline = (_id: string, isCurrent: boolean) => {
     // 当前设备不能被下线
     if (isCurrent) {
       alert('当前设备不能被下线');

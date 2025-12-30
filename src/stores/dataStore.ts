@@ -3,12 +3,24 @@ import { persist } from 'zustand/middleware';
 import { Folder, Note, Url, TrashItem, FolderColor } from '../types';
 import { useUserStore } from './userStore';
 import { API_BASE_URL } from '../config/api';
+import { syncQueue } from '../utils/syncQueue';
+import { encryptPrivacyPassword, verifyPrivacyPassword } from '../utils/privacyPassword';
 
 interface DataState {
   folders: Folder[];
   notes: Note[];
   urls: Url[];
   trash: TrashItem[];
+  
+  // 同步状态
+  pendingChanges: boolean;
+  isUploading: boolean;
+  isDownloading: boolean;
+  lastSyncTime: number | null;
+  syncError: string | null; // 同步错误信息
+  syncSuccess: boolean; // 最近一次同步是否成功
+  syncRetryCount: number; // 同步重试次数
+  lastRetryTime: number | null; // 最后重试时间
   
   // 文件夹操作
   addFolder: (name: string, type: Folder['type'], color?: FolderColor, password?: string) => string;
@@ -43,16 +55,57 @@ interface DataState {
   verifyFolderPassword: (id: string, password: string) => boolean;
   
   // 数据同步方法
-  syncDataFromServer: () => Promise<void>;
+  syncDataFromServer: (retryCount?: number) => Promise<void>;
   syncDataToServer: () => Promise<void>;
   getLastSyncTime: () => number | null;
   setLastSyncTime: (time: number | null) => void;
+  clearSyncError: () => void;
+  handleSyncRetry: (type: 'download' | 'upload', errorMessage: string) => Promise<void>;
 }
 
 const TRASH_EXPIRY_DAYS = 30;
 const TRASH_EXPIRY_MS = TRASH_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
 // 合并数组（保留最新的数据）
+/**
+ * 智能合并单个数据项（字段级别合并）
+ * 如果时间戳接近（1秒内），合并字段；否则保留时间戳更新的版本
+ */
+function mergeItem<T extends { id: string; updatedAt?: number; deletedAt?: number }>(
+  local: T,
+  server: T,
+  timeField: 'updatedAt' | 'deletedAt' = 'updatedAt'
+): T {
+  const localTime = local[timeField] || 0;
+  const serverTime = server[timeField] || 0;
+  const timeDiff = Math.abs(localTime - serverTime);
+  
+  // 如果时间戳相同或接近（1秒内），合并字段（保留所有非空值）
+  if (timeDiff < 1000) {
+    // 合并策略：服务器数据为基础，本地数据覆盖（保留本地更新的字段）
+    const merged: Partial<T> = { ...server };
+    (Object.keys(local) as Array<keyof T>).forEach((key) => {
+      const localValue = local[key];
+      const serverValue = server[key];
+      // 如果本地值不为空且与服务器值不同，使用本地值
+      if (localValue !== null && localValue !== undefined && localValue !== serverValue) {
+        merged[key] = localValue;
+      }
+    });
+    // 确保时间戳使用较大的值
+    if (localTime > serverTime) {
+      merged[timeField] = localTime as T[typeof timeField];
+    }
+    return merged as T;
+  }
+  
+  // 否则保留时间戳更新的版本
+  return localTime > serverTime ? local : server;
+}
+
+/**
+ * 合并数组（改进的冲突处理）
+ */
 function mergeArrays<T extends { id: string; updatedAt?: number; deletedAt?: number }>(
   local: T[],
   server: T[],
@@ -65,14 +118,16 @@ function mergeArrays<T extends { id: string; updatedAt?: number; deletedAt?: num
     map.set(item.id, item);
   });
   
-  // 再添加本地数据，如果本地数据更新则覆盖
+  // 再添加本地数据，使用智能合并
   local.forEach((item) => {
     const existing = map.get(item.id);
-    const localTime = item[timeField] || 0;
-    const serverTime = existing?.[timeField] || 0;
-    
-    if (!existing || localTime > serverTime) {
+    if (!existing) {
+      // 本地有但服务器没有，添加本地数据
       map.set(item.id, item);
+    } else {
+      // 两者都有，使用智能合并
+      const merged = mergeItem(item, existing, timeField);
+      map.set(item.id, merged);
     }
   });
   
@@ -80,9 +135,7 @@ function mergeArrays<T extends { id: string; updatedAt?: number; deletedAt?: num
 }
 
 // 防抖同步函数（避免频繁请求）
-// 分离上传和下载防抖，避免相互干扰
-let uploadSyncTimer: NodeJS.Timeout | null = null;
-let downloadSyncTimer: NodeJS.Timeout | null = null;
+let uploadSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 function debouncedUploadSync(syncFn: () => void, delay: number = 1500) {
   if (uploadSyncTimer) {
@@ -91,16 +144,6 @@ function debouncedUploadSync(syncFn: () => void, delay: number = 1500) {
   uploadSyncTimer = setTimeout(() => {
     syncFn();
     uploadSyncTimer = null;
-  }, delay);
-}
-
-function debouncedDownloadSync(syncFn: () => void, delay: number = 3000) {
-  if (downloadSyncTimer) {
-    clearTimeout(downloadSyncTimer);
-  }
-  downloadSyncTimer = setTimeout(() => {
-    syncFn();
-    downloadSyncTimer = null;
   }, delay);
 }
 
@@ -159,7 +202,7 @@ export const useDataStore = create<DataState>()(
       folders: [],
       notes: [],
       urls: [],
-      trash: [],
+      trash: [], // 新用户回收站默认为空
       
       addFolder: (name, type, color = 'blue', password) => {
         if (checkBanned()) return '';
@@ -168,6 +211,18 @@ export const useDataStore = create<DataState>()(
         const current = get().folders;
         const maxOrder =
           current.length > 0 ? Math.max(...current.map((f) => (f.order ?? 0))) : -1;
+        
+        // 如果设置了密码（隐私文件夹），需要加密
+        let encryptedPassword = password;
+        if (password && type === 'privacy') {
+          try {
+            encryptedPassword = encryptPrivacyPassword(password);
+          } catch (e) {
+            console.warn('[dataStore] 密码加密失败，使用明文:', e);
+            // 如果加密失败，使用明文（向后兼容）
+          }
+        }
+        
         const newFolder: Folder = {
           id,
           name,
@@ -177,7 +232,7 @@ export const useDataStore = create<DataState>()(
           order: maxOrder + 1,
           createdAt: now,
           updatedAt: now,
-          password,
+          password: encryptedPassword,
         };
         set((state) => ({
           folders: [...state.folders, newFolder],
@@ -192,9 +247,16 @@ export const useDataStore = create<DataState>()(
       
       updateFolder: (id, updates) => {
         if (checkBanned()) return;
+        
+        // 如果更新包含密码，需要加密
+        const processedUpdates = { ...updates };
+        if (updates.password && typeof updates.password === 'string') {
+          processedUpdates.password = encryptPrivacyPassword(updates.password);
+        }
+        
         set((state) => ({
           folders: state.folders.map((f) =>
-            f.id === id ? { ...f, ...updates, updatedAt: Date.now() } : f
+            f.id === id ? { ...f, ...processedUpdates, updatedAt: Date.now() } : f
           ),
         }));
         
@@ -500,35 +562,48 @@ export const useDataStore = create<DataState>()(
       
       verifyFolderPassword: (id, password) => {
         const folder = get().folders.find((f) => f.id === id);
-        return folder?.type === 'privacy' && folder?.password === password;
+        if (!folder || folder.type !== 'privacy' || !folder.password) {
+          return false;
+        }
+        // 使用加密验证函数
+        return verifyPrivacyPassword(password, folder.password);
       },
       
       // 数据同步方法
+      pendingChanges: false,
+      isUploading: false,
+      isDownloading: false,
       lastSyncTime: null as number | null,
+      syncError: null as string | null,
+      syncSuccess: false,
+      syncRetryCount: 0,
+      lastRetryTime: null as number | null,
       
       syncDataFromServer: async (retryCount: number = 0) => {
-        const MAX_RETRIES = 3;
-        
-        // 如果正在下载，跳过
-        if (get().isDownloading) {
-          console.log('[dataStore] 正在下载数据，跳过此次同步');
-          return;
-        }
-        
-        // 如果正在上传，等待上传完成（但限制重试次数）
-        if (get().isUploading) {
-          if (retryCount >= MAX_RETRIES) {
-            console.warn('[dataStore] 上传等待超时，取消同步');
+        // 使用同步队列确保操作串行执行
+        return syncQueue.add(async () => {
+          const MAX_RETRIES = 3;
+          
+          // 如果正在下载，跳过
+          if (get().isDownloading) {
+            console.log('[dataStore] 正在下载数据，跳过此次同步');
             return;
           }
-          console.log('[dataStore] 正在上传数据，等待完成后同步');
-          // 延迟重试
-          setTimeout(() => get().syncDataFromServer(retryCount + 1), 2000);
-          return;
-        }
-        
-        try {
-          set({ isDownloading: true });
+          
+          // 如果正在上传，等待上传完成（但限制重试次数）
+          if (get().isUploading) {
+            if (retryCount >= MAX_RETRIES) {
+              console.warn('[dataStore] 上传等待超时，取消同步');
+              return;
+            }
+            console.log('[dataStore] 正在上传数据，等待完成后同步');
+            // 延迟重试
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return get().syncDataFromServer(retryCount + 1);
+          }
+          
+          try {
+            set({ isDownloading: true });
           
           const { currentUser, token } = useUserStore.getState();
           if (!currentUser || !token) {
@@ -591,132 +666,213 @@ export const useDataStore = create<DataState>()(
                   trash: mergedTrash,
                   lastSyncTime: serverData.lastSyncAt || Date.now(),
                   isDownloading: false,
+                  syncError: null,
+                  syncSuccess: true,
+                  syncRetryCount: 0, // 重置重试计数
+                  lastRetryTime: null,
                 });
                 
                 console.log('[dataStore] 数据同步成功');
+                
+                // 3秒后清除成功状态
+                setTimeout(() => {
+                  set({ syncSuccess: false });
+                }, 3000);
               } else {
                 set({ isDownloading: false });
               }
             } else if (res.status === 401 || res.status === 403) {
-              console.warn('[dataStore] Token无效，清除登录状态');
-              set({ isDownloading: false });
-              useUserStore.getState().logout();
+              // Token过期，尝试刷新Token
+              const refreshResult = await useUserStore.getState().refreshAccessToken();
+              if (refreshResult.ok) {
+                // 刷新成功，重试同步
+                console.log('[dataStore] Token已刷新，重试同步');
+                return get().syncDataFromServer();
+              } else {
+                // 刷新失败，清除登录状态
+                console.warn('[dataStore] Token无效且刷新失败，清除登录状态');
+                set({ 
+                  isDownloading: false,
+                  syncError: '登录已过期，请重新登录',
+                  syncSuccess: false,
+                });
+                useUserStore.getState().logout();
+              }
             } else {
-              set({ isDownloading: false });
+              let errorMessage = '同步失败';
+              try {
+                const errorData = await res.json();
+                errorMessage = errorData.message || errorMessage;
+              } catch (e) {
+                // 忽略JSON解析错误
+              }
+              set({ 
+                isDownloading: false,
+                syncError: errorMessage,
+                syncSuccess: false,
+              });
             }
           } catch (fetchError: any) {
             clearTimeout(timeoutId);
+            let errorMessage = '网络错误，请检查网络连接';
             if (fetchError.name === 'AbortError') {
+              errorMessage = '请求超时，请检查网络连接';
               console.error('[dataStore] 请求超时');
             } else {
               throw fetchError;
             }
-            set({ isDownloading: false });
+            set({ 
+              isDownloading: false,
+              syncError: errorMessage,
+              syncSuccess: false,
+            });
           }
         } catch (e) {
           console.error('[dataStore] 同步数据失败:', e);
-          set({ isDownloading: false });
+          const errorMessage = e instanceof Error ? e.message : '同步失败，请稍后重试';
+          set({ 
+            isDownloading: false,
+            syncError: errorMessage,
+            syncSuccess: false,
+          });
         }
+        });
       },
       
       syncDataToServer: async () => {
-        // 如果正在上传，跳过
-        if (get().isUploading) {
-          console.log('[dataStore] 正在上传数据，跳过此次同步');
-          return;
-        }
-        
-        // 如果没有待同步的变更，跳过
-        if (!get().pendingChanges && get().lastSyncTime) {
-          const timeSinceLastSync = Date.now() - (get().lastSyncTime || 0);
-          if (timeSinceLastSync < 5000) {
-            console.log('[dataStore] 数据无变化且最近已同步，跳过');
-            return;
-          }
-        }
-        
-        try {
-          set({ isUploading: true, pendingChanges: false });
-          
-          const { currentUser, token } = useUserStore.getState();
-          if (!currentUser || !token) {
-            console.warn('[dataStore] 未登录，无法同步数据');
-            set({ isUploading: false });
+        // 使用同步队列确保操作串行执行
+        return syncQueue.add(async () => {
+          // 如果正在上传，跳过
+          if (get().isUploading) {
+            console.log('[dataStore] 正在上传数据，跳过此次同步');
             return;
           }
           
-          const state = get();
-          const dataToSync = {
-            folders: state.folders || [],
-            notes: state.notes || [],
-            urls: state.urls || [],
-            trash: state.trash || [],
-          };
-          
-          // 使用AbortController实现超时
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+          // 如果没有待同步的变更，跳过
+          if (!get().pendingChanges && get().lastSyncTime) {
+            const timeSinceLastSync = Date.now() - (get().lastSyncTime || 0);
+            if (timeSinceLastSync < 5000) {
+              console.log('[dataStore] 数据无变化且最近已同步，跳过');
+              return;
+            }
+          }
           
           try {
-            const res = await fetch(`${API_BASE_URL}/data/sync`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(dataToSync),
-              signal: controller.signal,
-            });
+            set({ isUploading: true, pendingChanges: false });
             
-            clearTimeout(timeoutId);
-            
-            if (res.ok) {
-              let result;
-              try {
-                result = await res.json();
-              } catch (e) {
-                console.error('[dataStore] JSON解析失败:', e);
-                set({ isUploading: false, pendingChanges: true });
-                return;
-              }
-              
-              if (result.success) {
-                set({
-                  lastSyncTime: result.data?.lastSyncAt || Date.now(),
-                  isUploading: false,
-                  pendingChanges: false,
-                });
-                console.log('[dataStore] 数据已同步到服务器');
-              } else {
-                set({ isUploading: false });
-              }
-            } else if (res.status === 401 || res.status === 403) {
-              console.warn('[dataStore] Token无效，清除登录状态');
+            const { currentUser, token } = useUserStore.getState();
+            if (!currentUser || !token) {
+              console.warn('[dataStore] 未登录，无法同步数据');
               set({ isUploading: false });
-              useUserStore.getState().logout();
-            } else {
-              let errorData = {};
-              try {
-                errorData = await res.json();
-              } catch (e) {
-                // 忽略JSON解析错误
+              return;
+            }
+            
+            const state = get();
+            const dataToSync = {
+              folders: state.folders || [],
+              notes: state.notes || [],
+              urls: state.urls || [],
+              trash: state.trash || [],
+            };
+            
+            // 使用AbortController实现超时
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+            
+            try {
+              const res = await fetch(`${API_BASE_URL}/data/sync`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dataToSync),
+                signal: controller.signal,
+              });
+              
+              clearTimeout(timeoutId);
+              
+              if (res.ok) {
+                let result;
+                try {
+                  result = await res.json();
+                } catch (e) {
+                  console.error('[dataStore] JSON解析失败:', e);
+                  set({ isUploading: false, pendingChanges: true });
+                  return;
+                }
+                
+                if (result.success) {
+                  set({
+                    lastSyncTime: result.data?.lastSyncAt || Date.now(),
+                    isUploading: false,
+                    pendingChanges: false,
+                    syncError: null,
+                    syncSuccess: true,
+                    syncRetryCount: 0, // 重置重试计数
+                    lastRetryTime: null,
+                  });
+                  console.log('[dataStore] 数据已同步到服务器');
+                  
+                  // 3秒后清除成功状态
+                  setTimeout(() => {
+                    set({ syncSuccess: false });
+                  }, 3000);
+                } else {
+                  set({ 
+                    isUploading: false,
+                    syncError: result.message || '同步失败',
+                    syncSuccess: false,
+                  });
+                }
+              } else if (res.status === 401 || res.status === 403) {
+                // Token过期，尝试刷新Token
+                const refreshResult = await useUserStore.getState().refreshAccessToken();
+                if (refreshResult.ok) {
+                  // 刷新成功，重试同步
+                  console.log('[dataStore] Token已刷新，重试同步');
+                  return get().syncDataToServer();
+                } else {
+                  // 刷新失败，清除登录状态
+                  console.warn('[dataStore] Token无效且刷新失败，清除登录状态');
+                  set({ 
+                    isUploading: false,
+                    syncError: '登录已过期，请重新登录',
+                    syncSuccess: false,
+                  });
+                  useUserStore.getState().logout();
+                }
+              } else {
+                let errorData = {};
+                try {
+                  errorData = await res.json();
+                } catch (e) {
+                  // 忽略JSON解析错误
+                }
+                const errorMessage = (errorData as any).message || '同步失败，请稍后重试';
+                console.error('[dataStore] 同步失败:', errorMessage);
+                // 同步失败，触发自动重试
+                await get().handleSyncRetry('upload', errorMessage);
               }
-              console.error('[dataStore] 同步失败:', (errorData as any).message || '未知错误');
-              set({ isUploading: false, pendingChanges: true }); // 标记为待同步
+            } catch (fetchError: any) {
+              clearTimeout(timeoutId);
+              let errorMessage = '网络错误，请检查网络连接';
+              if (fetchError.name === 'AbortError') {
+                errorMessage = '请求超时，请检查网络连接';
+                console.error('[dataStore] 请求超时');
+              } else {
+                console.error('[dataStore] 同步数据到服务器失败:', fetchError);
+              }
+              // 同步失败，触发自动重试
+              await get().handleSyncRetry('upload', errorMessage);
             }
-          } catch (fetchError: any) {
-            clearTimeout(timeoutId);
-            if (fetchError.name === 'AbortError') {
-              console.error('[dataStore] 请求超时');
-            } else {
-              console.error('[dataStore] 同步数据到服务器失败:', fetchError);
-            }
-            set({ isUploading: false, pendingChanges: true }); // 标记为待同步
+          } catch (e) {
+            console.error('[dataStore] 同步数据到服务器失败:', e);
+            const errorMessage = e instanceof Error ? e.message : '同步失败，请稍后重试';
+            // 同步失败，触发自动重试
+            await get().handleSyncRetry('upload', errorMessage);
           }
-        } catch (e) {
-          console.error('[dataStore] 同步数据到服务器失败:', e);
-          set({ isUploading: false, pendingChanges: true }); // 标记为待同步
-        }
+        });
       },
       
       getLastSyncTime: () => {
@@ -725,6 +881,49 @@ export const useDataStore = create<DataState>()(
       
       setLastSyncTime: (time: number | null) => {
         set({ lastSyncTime: time });
+      },
+      
+      clearSyncError: () => {
+        set({ syncError: null, syncRetryCount: 0, lastRetryTime: null });
+      },
+      
+      handleSyncRetry: async (type: 'download' | 'upload', errorMessage: string) => {
+        const MAX_RETRIES = 5;
+        const currentRetryCount = get().syncRetryCount;
+        
+        if (currentRetryCount >= MAX_RETRIES) {
+          // 超过最大重试次数，停止重试并提示用户
+          set({ 
+            isDownloading: false,
+            isUploading: false,
+            syncError: `${errorMessage}（已重试${MAX_RETRIES}次，请检查网络连接）`,
+            syncSuccess: false,
+            syncRetryCount: 0,
+            lastRetryTime: null,
+          });
+          return;
+        }
+        
+        // 计算延迟时间（指数退避：1s, 2s, 4s, 8s, 16s）
+        const delay = Math.min(1000 * Math.pow(2, currentRetryCount), 30000);
+        
+        set({ 
+          isDownloading: false,
+          isUploading: false,
+          syncError: `${errorMessage}（${delay / 1000}秒后重试...）`,
+          syncSuccess: false,
+          syncRetryCount: currentRetryCount + 1,
+          lastRetryTime: Date.now(),
+        });
+        
+        // 延迟后重试
+        setTimeout(async () => {
+          if (type === 'download') {
+            await get().syncDataFromServer();
+          } else {
+            await get().syncDataToServer();
+          }
+        }, delay);
       },
     }),
     {
@@ -766,6 +965,7 @@ export const useDataStore = create<DataState>()(
         
         // 强制确保新用户的回收站为空
         if (isNewUser) {
+          console.log('[dataStore] 新用户首次登录，强制清空回收站');
           state.trash = [];
         }
         
@@ -779,6 +979,22 @@ export const useDataStore = create<DataState>()(
             const onlyDefaultFolders = state.folders.every(f => defaultFolderIds.includes(f.id));
             if (onlyDefaultFolders) {
               console.log('[dataStore] 检测到只有默认文件夹，清空回收站');
+              state.trash = [];
+            }
+          }
+        }
+        
+        // 最终检查：如果是新用户（没有登录记录或登录时间很近），强制清空回收站
+        if (currentUser) {
+          const loginTimeKey = `piccco-login-time-${currentUser.id}`;
+          const loginTime = localStorage.getItem(loginTimeKey);
+          if (loginTime) {
+            const loginTimestamp = parseInt(loginTime, 10);
+            const now = Date.now();
+            const timeSinceLogin = now - loginTimestamp;
+            // 如果登录时间在10分钟内，且回收站有数据，强制清空（确保新用户回收站为空）
+            if (timeSinceLogin < 10 * 60 * 1000 && state.trash && state.trash.length > 0) {
+              console.log('[dataStore] 新用户首次登录（登录时间:', Math.round(timeSinceLogin / 1000), '秒前），强制清空回收站');
               state.trash = [];
             }
           }

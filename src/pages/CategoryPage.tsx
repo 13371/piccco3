@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
-import { FolderColor } from '../types';
+import { Folder, FolderColor } from '../types';
 import { eventEmitter } from '../utils/events';
 import ListItem from '../components/ListItem';
 import FolderIcon from '../components/FolderIcon';
@@ -35,12 +35,6 @@ const CategoryPage = () => {
   const navigate = useNavigate();
 
   const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
-
-  const getNextColor = (current: FolderColor): FolderColor => {
-    const index = colors.indexOf(current);
-    const nextIndex = index === -1 ? 0 : (index + 1) % colors.length;
-    return colors[nextIndex];
-  };
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -84,7 +78,7 @@ const CategoryPage = () => {
   const handleAddFolder = () => {
     if (newFolderName.trim()) {
       if (editingFolder) {
-        const updates: any = {
+        const updates: Partial<Folder> = {
           name: newFolderName,
         };
         // 只有在新密码不为空时才更新密码
@@ -268,9 +262,13 @@ const CategoryPage = () => {
       {showPasswordModal && (
         <PasswordModal
           isOpen={true}
-          onClose={() => setShowPasswordModal(null)}
+          onClose={() => {
+            setShowPasswordModal(null);
+            setPasswordMode(null);
+          }}
           onConfirm={(password) => handlePasswordConfirm(showPasswordModal, password)}
-          title={passwordMode === 'set' ? t('setPrivacyPassword') : t('enterPassword')}
+          mode={passwordMode || 'verify'}
+          title={passwordMode === 'set' ? '设置隐私文件夹密码' : '输入密码'}
         />
       )}
 
@@ -296,7 +294,7 @@ const CategoryPage = () => {
           {!editingFolder && (
             <select
               value={newFolderType}
-              onChange={(e) => setNewFolderType(e.target.value as any)}
+              onChange={(e) => setNewFolderType(e.target.value as 'normal' | 'privacy' | 'url')}
               className="form-input"
             >
               <option value="normal">{t('normalFolder')}</option>

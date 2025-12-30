@@ -73,6 +73,22 @@ const HelpFeedbackPage = () => {
         </section>
 
         <section className="help-section">
+          <h2 className="help-section-title">{t('helpSync')}</h2>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpSyncTitle')}</h3>
+            <p className="help-item-content">{t('helpSyncDesc')}</p>
+          </div>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpSyncStatus')}</h3>
+            <p className="help-item-content">{t('helpSyncStatusDesc')}</p>
+          </div>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpSyncAuto')}</h3>
+            <p className="help-item-content">{t('helpSyncAutoDesc')}</p>
+          </div>
+        </section>
+
+        <section className="help-section">
           <h2 className="help-section-title">{t('helpData')}</h2>
           <div className="help-item">
             <h3 className="help-item-title">{t('helpDataStorage')}</h3>
@@ -84,9 +100,26 @@ const HelpFeedbackPage = () => {
           </div>
         </section>
 
+        <section className="help-section">
+          <h2 className="help-section-title">{t('helpAccount')}</h2>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpLogin')}</h3>
+            <p className="help-item-content">{t('helpLoginDesc')}</p>
+          </div>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpDevice')}</h3>
+            <p className="help-item-content">{t('helpDeviceDesc')}</p>
+          </div>
+          <div className="help-item">
+            <h3 className="help-item-title">{t('helpMessage')}</h3>
+            <p className="help-item-content">{t('helpMessageDesc')}</p>
+          </div>
+        </section>
+
         <section className="feedback-section">
           <h2 className="help-section-title">{t('feedbackTitle')}</h2>
           <p className="feedback-content">{t('feedbackDesc')}</p>
+          <p className="feedback-tips">{t('feedbackTips')}</p>
           <button className="feedback-email-button" onClick={handleEmailClick}>
             📧 {t('feedbackEmail')}: z13371@qq.com
           </button>

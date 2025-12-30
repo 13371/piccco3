@@ -8,6 +8,8 @@ const REQUEST_TIMEOUT = 30000; // 30秒
 /**
  * 带超时的fetch请求
  */
+import logger from './logger';
+
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = REQUEST_TIMEOUT): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -19,9 +21,9 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout:
     });
     clearTimeout(timeoutId);
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('请求超时，请检查网络连接');
     }
     throw error;
@@ -40,8 +42,8 @@ async function safeJsonParse<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch (e) {
-    console.error('[api] JSON解析失败:', e);
-    console.error('[api] 响应内容:', text.substring(0, 200));
+    logger.error('[api] JSON解析失败:', e);
+    logger.error('[api] 响应内容:', text.substring(0, 200));
     throw new Error('服务器响应格式错误');
   }
 }
@@ -49,7 +51,7 @@ async function safeJsonParse<T>(response: Response): Promise<T> {
 /**
  * 统一的API请求函数
  */
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
   timeout: number = REQUEST_TIMEOUT
@@ -61,10 +63,10 @@ export async function apiRequest<T = any>(
     let data: T;
     try {
       data = await safeJsonParse<T>(response);
-    } catch (e: any) {
+    } catch (e) {
       return {
         ok: false,
-        message: e.message || '服务器响应格式错误',
+        message: e instanceof Error ? e.message : '服务器响应格式错误',
         status: response.status,
       };
     }
@@ -73,7 +75,7 @@ export async function apiRequest<T = any>(
       return {
         ok: false,
         data,
-        message: (data as any)?.message || `请求失败 (${response.status})`,
+        message: (data as { message?: string } | undefined)?.message || `请求失败 (${response.status})`,
         status: response.status,
       };
     }
@@ -83,11 +85,11 @@ export async function apiRequest<T = any>(
       data,
       status: response.status,
     };
-  } catch (error: any) {
-    console.error('[api] 请求失败:', error);
+  } catch (error) {
+    logger.error('[api] 请求失败:', error);
     return {
       ok: false,
-      message: error.message || '网络错误，请稍后重试',
+      message: error instanceof Error ? error.message : '网络错误，请稍后重试',
     };
   }
 }

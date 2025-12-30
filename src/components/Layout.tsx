@@ -13,7 +13,6 @@ const Layout = () => {
   const isAuthenticated = useUserStore((state) => state.isAuthenticated());
   const isBanned = useUserStore((state) => state.isBanned());
   const checkBanStatus = useUserStore((state) => state.checkBanStatus);
-  const currentUser = useUserStore((state) => state.currentUser);
   const logout = useUserStore((state) => state.logout);
   const fontSize = useSettingsStore((state) => state.fontSize);
   const nightMode = useSettingsStore((state) => state.nightMode);
@@ -24,7 +23,7 @@ const Layout = () => {
   useEffect(() => {
     if (isAuthenticated) {
       // 立即检查一次
-      checkBanStatus().then((result) => {
+      checkBanStatus().then((result: boolean | 'unbanned' | false) => {
         if (result === true) {
           // 用户被封禁
           const user = useUserStore.getState().currentUser;
@@ -78,9 +77,8 @@ const Layout = () => {
   useEffect(() => {
     if (!isAuthenticated || isBanned) return;
     
-    const dataStore = useDataStore.getState();
-    const syncDataFromServer = dataStore.syncDataFromServer;
-    const syncDataToServer = dataStore.syncDataToServer;
+    const syncDataFromServer = useDataStore.getState().syncDataFromServer;
+    const syncDataToServer = useDataStore.getState().syncDataToServer;
     
     // 延迟同步，避免与登录时的同步冲突
     const initialSyncTimer = setTimeout(() => {
@@ -92,11 +90,9 @@ const Layout = () => {
       // 先下载服务器数据
       syncDataFromServer();
       
-      // 如果有待同步的变更，上传数据
-      if (dataStore.pendingChanges) {
-        debouncedDownloadSync(() => {
-          syncDataToServer();
-        }, 2000);
+      // 实时获取 pendingChanges，避免闭包问题
+      if (useDataStore.getState().pendingChanges) {
+        syncDataToServer();
       }
     }, 60000); // 60秒
     

@@ -1,18 +1,18 @@
 const path = require('path');
-const { readJsonFile, writeJsonFile, ensureDir } = require('../utils/fileStore');
+const { readJsonFileSync, writeJsonFileSync, ensureDirSync } = require('../utils/fileStore');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 
 // 确保数据目录存在
-ensureDir(DATA_DIR);
+ensureDirSync(DATA_DIR);
 
 function readMessages() {
-  return readJsonFile(MESSAGES_FILE, []);
+  return readJsonFileSync(MESSAGES_FILE, []);
 }
 
 function writeMessages(messages) {
-  const success = writeJsonFile(MESSAGES_FILE, messages);
+  const success = writeJsonFileSync(MESSAGES_FILE, messages);
   if (!success) {
     throw new Error('写入消息数据失败');
   }
@@ -71,6 +71,18 @@ function deleteMessage(messageId) {
   return false;
 }
 
+// 删除用户的所有消息
+function deleteUserMessages(userId) {
+  const messages = readMessages();
+  const initialLength = messages.length;
+  const filteredMessages = messages.filter((m) => m.userId !== userId);
+  if (filteredMessages.length < initialLength) {
+    writeMessages(filteredMessages);
+    return initialLength - filteredMessages.length;
+  }
+  return 0;
+}
+
 // 向所有用户发送消息
 function sendMessageToAllUsers(title, content, userIds) {
   const messages = readMessages();
@@ -94,6 +106,7 @@ module.exports = {
   markMessageAsRead,
   deleteMessage,
   sendMessageToAllUsers,
+  deleteUserMessages,
 };
 
 

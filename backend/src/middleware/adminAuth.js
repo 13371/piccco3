@@ -1,5 +1,6 @@
 // Admin认证中间件
 const bcrypt = require('bcryptjs');
+const logger = require('../utils/logger');
 
 // 从环境变量获取密码，如果没有设置则使用默认值（仅开发环境）
 const ADMIN_PASSWORD_PLAIN = process.env.ADMIN_PASSWORD || 'admin123';
@@ -11,7 +12,7 @@ let adminPasswordHash = ADMIN_PASSWORD_HASH;
 if (!ADMIN_PASSWORD_HASH && ADMIN_PASSWORD_PLAIN) {
   // 同步生成哈希（仅用于初始化，实际比较使用异步）
   adminPasswordHash = bcrypt.hashSync(ADMIN_PASSWORD_PLAIN, 10);
-  console.warn('[adminAuth] 警告：使用明文密码，建议设置 ADMIN_PASSWORD_HASH 环境变量');
+  logger.warn('adminAuth', '警告：使用明文密码，建议设置 ADMIN_PASSWORD_HASH 环境变量');
 }
 
 function requireAdminAuth(req, res, next) {

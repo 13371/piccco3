@@ -73,13 +73,6 @@ const NewNotePage = () => {
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />
-
-          <div className="note-footer">
-            <span className="footer-label">附件</span>
-            <button className="add-attachment-btn">
-              ➕ 添加附件
-            </button>
-          </div>
         </div>
       </div>
     </div>

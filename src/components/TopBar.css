@@ -71,4 +71,83 @@
   text-transform: lowercase;
 }
 
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.sync-status:hover {
+  opacity: 0.8;
+}
+
+.sync-status.syncing {
+  background-color: rgba(0, 122, 255, 0.1);
+  color: var(--primary-color);
+}
+
+.sync-status.success {
+  background-color: rgba(52, 199, 89, 0.1);
+  color: #34c759;
+}
+
+.sync-status.error {
+  background-color: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+}
+
+.sync-status.pending {
+  background-color: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
+}
+
+.sync-status.idle {
+  background-color: rgba(142, 142, 147, 0.1);
+  color: var(--text-secondary);
+}
+
+.sync-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sync-text {
+  font-size: 12px;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .sync-status.syncing {
+  background-color: rgba(10, 132, 255, 0.2);
+}
+
+[data-theme="dark"] .sync-status.success {
+  background-color: rgba(50, 215, 75, 0.2);
+}
+
+[data-theme="dark"] .sync-status.error {
+  background-color: rgba(255, 69, 58, 0.2);
+}
+
+[data-theme="dark"] .sync-status.pending {
+  background-color: rgba(255, 159, 10, 0.2);
+}
+
+[data-theme="dark"] .sync-status.idle {
+  background-color: rgba(142, 142, 147, 0.2);
+}
+
 

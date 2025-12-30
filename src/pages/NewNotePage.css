@@ -112,32 +112,3 @@
   color: var(--text-tertiary);
 }
 
-.note-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0 0 0;
-  margin-top: 12px;
-  border-top: 1px solid var(--primary-color);
-}
-
-.footer-label {
-  font-size: 16px;
-  color: var(--text-color);
-}
-
-.add-attachment-btn {
-  padding: 8px 16px;
-  background-color: var(--primary-color);
-  color: white;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-}
-
-.add-attachment-btn:hover {
-  opacity: 0.9;
-}
-

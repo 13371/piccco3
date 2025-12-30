@@ -2,13 +2,6 @@
   padding: 20px;
 }
 
-.account-security-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
 .account-security-content {
   margin-top: 8px;
   display: flex;

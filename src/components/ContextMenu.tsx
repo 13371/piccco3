@@ -1,4 +1,3 @@
-import { ReactNode } from 'react';
 import './ContextMenu.css';
 
 interface ContextMenuProps {

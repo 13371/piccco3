@@ -9,8 +9,6 @@ const HomePage = () => {
   const addNote = useDataStore((state) => state.addNote);
   const notes = useDataStore((state) => state.getNotesByFolder());
   const updateNote = useDataStore((state) => state.updateNote);
-  const deleteNote = useDataStore((state) => state.deleteNote);
-  const toggleNoteStar = useDataStore((state) => state.toggleNoteStar);
   const { t } = useTranslation();
 
   // 自动保存
@@ -27,7 +25,7 @@ const HomePage = () => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [content]);
+  }, [content, notes, updateNote, addNote]);
 
   // 加载已有内容
   useEffect(() => {
@@ -35,7 +33,7 @@ const HomePage = () => {
     if (existingNote) {
       setContent(existingNote.content);
     }
-  }, []);
+  }, [notes]);
 
   const handleSave = () => {
     if (content.trim()) {

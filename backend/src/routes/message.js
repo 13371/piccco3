@@ -1,10 +1,13 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 const { getUserMessages, markMessageAsRead } = require('../store/messageStore');
 
 const router = express.Router();
 
+// 直接从环境变量读取 JWT_SECRET，与 auth.js 和 data.js 保持一致
 const JWT_SECRET = process.env.JWT_SECRET;
+const FINAL_JWT_SECRET = JWT_SECRET || 'dev-secret-change-me-in-production';
 
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
@@ -15,12 +18,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: '未授权，请先登录' });
   }
 
-  if (!JWT_SECRET) {
-    console.error('[message] JWT_SECRET 未配置');
-    return res.status(500).json({ message: '服务器配置错误' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, FINAL_JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ message: 'Token无效或已过期' });
     }
@@ -47,7 +45,7 @@ router.get('/messages', authenticateToken, (req, res) => {
     }));
     res.json({ messages: formattedMessages });
   } catch (e) {
-    console.error('[message] get messages error:', e);
+    logger.error('message', 'get messages error:', e);
     res.status(500).json({ message: '获取消息失败' });
   }
 });
@@ -79,7 +77,7 @@ router.post('/messages/:messageId/read', authenticateToken, (req, res) => {
     
     res.json({ message: '消息已标记为已读' });
   } catch (e) {
-    console.error('[message] mark read error:', e);
+    logger.error('message', 'mark read error:', e);
     res.status(500).json({ message: '标记失败' });
   }
 });

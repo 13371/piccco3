@@ -1,18 +1,18 @@
 const path = require('path');
-const { readJsonFile, writeJsonFile, ensureDir } = require('../utils/fileStore');
+const { readJsonFileSync, writeJsonFileSync, ensureDirSync } = require('../utils/fileStore');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const MESSAGE_HISTORY_FILE = path.join(DATA_DIR, 'message-history.json');
 
 // 确保数据目录存在
-ensureDir(DATA_DIR);
+ensureDirSync(DATA_DIR);
 
 function readHistory() {
-  return readJsonFile(MESSAGE_HISTORY_FILE, []);
+  return readJsonFileSync(MESSAGE_HISTORY_FILE, []);
 }
 
 function writeHistory(history) {
-  const success = writeJsonFile(MESSAGE_HISTORY_FILE, history);
+  const success = writeJsonFileSync(MESSAGE_HISTORY_FILE, history);
   if (!success) {
     throw new Error('写入消息历史数据失败');
   }
@@ -101,11 +101,24 @@ function deleteHistory(historyId) {
   return false;
 }
 
+// 删除用户相关的历史记录
+function deleteUserHistory(userId) {
+  const history = readHistory();
+  const initialLength = history.length;
+  const filteredHistory = history.filter((h) => h.userId !== userId);
+  if (filteredHistory.length < initialLength) {
+    writeHistory(filteredHistory);
+    return initialLength - filteredHistory.length;
+  }
+  return 0;
+}
+
 module.exports = {
   addMessageHistory,
   addBroadcastHistory,
   getMessageHistory,
   deleteHistory,
+  deleteUserHistory,
 };
 
 

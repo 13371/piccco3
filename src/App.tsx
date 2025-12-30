@@ -26,6 +26,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/user-agreement" element={<UserAgreementPage />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="all" element={<AllPage />} />
@@ -43,7 +44,6 @@ function App() {
           <Route path="devices" element={<DeviceManagementPage />} />
           <Route path="help-feedback" element={<HelpFeedbackPage />} />
           <Route path="about" element={<AboutPage />} />
-          <Route path="user-agreement" element={<UserAgreementPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -51,6 +51,7 @@ function App() {
 }
 
 export default App;
+
 
 
 

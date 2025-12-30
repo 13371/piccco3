@@ -106,7 +106,7 @@ const FolderUrlsPage = () => {
   return (
     <div className="url-page">
       <div className="folder-header-row">
-        <button className="folder-back-btn" onClick={() => navigate(-1)}>
+        <button className="page-back-button" onClick={() => navigate(-1)}>
           ← 返回
         </button>
         <h1 className="page-title">{folder.name}</h1>

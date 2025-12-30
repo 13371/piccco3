@@ -1,12 +1,19 @@
 // 用户数据存储（笔记、文件夹、URL）
 const path = require('path');
 const { readJsonFile, writeJsonFile, ensureDir } = require('../utils/fileStore');
+const logger = require('../utils/logger');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const USER_DATA_DIR = path.join(DATA_DIR, 'user-data');
 
-// 确保目录存在
-ensureDir(USER_DATA_DIR);
+// 确保目录存在（异步初始化）
+(async () => {
+  try {
+    await ensureDir(USER_DATA_DIR);
+  } catch (e) {
+    logger.error('userDataStore', '初始化目录失败:', e);
+  }
+})();
 
 /**
  * 获取用户数据文件路径（防止路径遍历攻击）
@@ -22,9 +29,9 @@ function getUserDataFile(userId) {
 }
 
 /**
- * 读取用户数据
+ * 读取用户数据（异步）
  */
-function readUserData(userId) {
+async function readUserData(userId) {
   const filePath = getUserDataFile(userId);
   const defaultData = {
     folders: [],
@@ -33,17 +40,17 @@ function readUserData(userId) {
     trash: [],
     lastSyncAt: null,
   };
-  return readJsonFile(filePath, defaultData);
+  return await readJsonFile(filePath, defaultData);
 }
 
 /**
- * 写入用户数据
+ * 写入用户数据（异步）
  */
-function writeUserData(userId, data) {
+async function writeUserData(userId, data) {
   const filePath = getUserDataFile(userId);
   // 添加同步时间戳
   data.lastSyncAt = Date.now();
-  const success = writeJsonFile(filePath, data, true);
+  const success = await writeJsonFile(filePath, data, true);
   if (!success) {
     throw new Error('写入用户数据失败');
   }
@@ -51,30 +58,30 @@ function writeUserData(userId, data) {
 }
 
 /**
- * 获取用户数据（完整数据）
+ * 获取用户数据（完整数据，异步）
  */
-function getUserData(userId) {
-  return readUserData(userId);
+async function getUserData(userId) {
+  return await readUserData(userId);
 }
 
 /**
- * 保存用户数据（完整数据）
+ * 保存用户数据（完整数据，异步）
  */
-function saveUserData(userId, data) {
-  return writeUserData(userId, data);
+async function saveUserData(userId, data) {
+  return await writeUserData(userId, data);
 }
 
 /**
- * 更新用户数据（部分更新）
+ * 更新用户数据（部分更新，异步）
  */
-function updateUserData(userId, updates) {
-  const currentData = readUserData(userId);
+async function updateUserData(userId, updates) {
+  const currentData = await readUserData(userId);
   const updatedData = {
     ...currentData,
     ...updates,
     lastSyncAt: Date.now(),
   };
-  return writeUserData(userId, updatedData);
+  return await writeUserData(userId, updatedData);
 }
 
 /**
@@ -90,7 +97,7 @@ function deleteUserData(userId) {
     }
     return false;
   } catch (e) {
-    console.error(`[userDataStore] 删除用户数据失败 ${userId}:`, e);
+    logger.error('userDataStore', `删除用户数据失败 ${userId}:`, e);
     return false;
   }
 }

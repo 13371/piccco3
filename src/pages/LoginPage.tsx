@@ -17,10 +17,19 @@ const LoginPage = () => {
   const [countdown, setCountdown] = useState(0);
   const [showBanModal, setShowBanModal] = useState(false);
   const [banMessage, setBanMessage] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordCode, setForgotPasswordCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotPasswordCountdown, setForgotPasswordCountdown] = useState(0);
+  const [sendingForgotPasswordCode, setSendingForgotPasswordCode] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const login = useUserStore((state) => state.login);
   const registerWithEmail = useUserStore((state) => state.registerWithEmail);
   const sendRegisterCode = useUserStore((state) => state.sendRegisterCode);
+  const changePassword = useUserStore((state) => state.changePassword);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -35,6 +44,20 @@ const LoginPage = () => {
     }, 1000);
     return () => window.clearInterval(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    if (forgotPasswordCountdown <= 0) return;
+    const timer = window.setInterval(() => {
+      setForgotPasswordCountdown((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [forgotPasswordCountdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +102,11 @@ const LoginPage = () => {
         setLoading(false);
         return;
       }
+      if (!agreedToTerms) {
+        setError('请先同意用户协议');
+        setLoading(false);
+        return;
+      }
       const result = await registerWithEmail({ email, username, password, code });
       if (result.ok) {
         // 注册成功，导航到首页
@@ -108,6 +136,68 @@ const LoginPage = () => {
     }
 
     setCountdown(60);
+  };
+
+  const handleSendForgotPasswordCode = async () => {
+    if (!forgotPasswordEmail) {
+      setError('请先输入邮箱');
+      return;
+    }
+    if (forgotPasswordCountdown > 0 || sendingForgotPasswordCode) return;
+
+    setError('');
+    setSendingForgotPasswordCode(true);
+    const result = await sendRegisterCode(forgotPasswordEmail);
+    setSendingForgotPasswordCode(false);
+
+    if (!result.ok) {
+      setError(result.message || '发送验证码失败');
+      return;
+    }
+
+    setForgotPasswordCountdown(60);
+  };
+
+  const handleResetPassword = async () => {
+    setError('');
+    
+    if (!forgotPasswordEmail) {
+      setError('请输入邮箱');
+      return;
+    }
+    if (!forgotPasswordCode) {
+      setError('请输入验证码');
+      return;
+    }
+    if (!newPassword) {
+      setError('请输入新密码');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('密码长度至少6个字符');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      return;
+    }
+
+    setLoading(true);
+    const result = await changePassword(forgotPasswordEmail, newPassword, forgotPasswordCode);
+    setLoading(false);
+
+    if (result.ok) {
+      // 重置成功，关闭忘记密码弹窗，显示成功消息
+      setShowForgotPassword(false);
+      setError('');
+      setForgotPasswordEmail('');
+      setForgotPasswordCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      alert('密码重置成功，请使用新密码登录');
+    } else {
+      setError(result.message || '重置密码失败');
+    }
   };
 
   return (
@@ -157,16 +247,53 @@ const LoginPage = () => {
               </button>
             </div>
           )}
+          {!isLogin && (
+            <div className="login-agreement-row">
+              <label className="login-agreement-label">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="login-agreement-checkbox"
+                />
+                <span>
+                  我已阅读并同意{' '}
+                  <a
+                    href="/user-agreement"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open('/user-agreement', '_blank');
+                    }}
+                    className="login-agreement-link"
+                  >
+                    用户协议
+                  </a>
+                </span>
+              </label>
+            </div>
+          )}
           {error && <div className="login-error">{error}</div>}
           <button type="submit" className="login-button" disabled={loading}>
             {loading ? '请稍候...' : isLogin ? '登录' : '注册'}
           </button>
         </form>
+        {isLogin && (
+          <button
+            className="login-forgot-password"
+            onClick={() => setShowForgotPassword(true)}
+          >
+            忘记密码？
+          </button>
+        )}
         <button
           className="login-switch"
           onClick={() => {
             setIsLogin(!isLogin);
             setError('');
+            setAgreedToTerms(false);
           }}
         >
           {isLogin ? '还没有账号？注册' : '已有账号？登录'}
@@ -201,6 +328,78 @@ const LoginPage = () => {
             }}
           >
             我知道了
+          </button>
+        </div>
+      </Modal>
+
+      {/* 忘记密码弹窗 */}
+      <Modal
+        isOpen={showForgotPassword}
+        onClose={() => {
+          setShowForgotPassword(false);
+          setError('');
+          setForgotPasswordEmail('');
+          setForgotPasswordCode('');
+          setNewPassword('');
+          setConfirmPassword('');
+        }}
+        title="重置密码"
+      >
+        <div style={{ padding: '20px 0' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <input
+              type="email"
+              placeholder="请输入您的邮箱"
+              value={forgotPasswordEmail}
+              onChange={(e) => setForgotPasswordEmail(e.target.value)}
+              className="login-input"
+              style={{ width: '100%', marginBottom: '8px' }}
+            />
+            <div className="login-code-row">
+              <input
+                type="text"
+                placeholder="邮箱验证码"
+                value={forgotPasswordCode}
+                onChange={(e) => setForgotPasswordCode(e.target.value)}
+                className="login-input"
+              />
+              <button
+                type="button"
+                className="code-button"
+                onClick={handleSendForgotPasswordCode}
+                disabled={sendingForgotPasswordCode || forgotPasswordCountdown > 0}
+              >
+                {forgotPasswordCountdown > 0 ? `重新发送(${forgotPasswordCountdown}s)` : '发送验证码'}
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <input
+              type="password"
+              placeholder="新密码（至少6个字符）"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="login-input"
+              style={{ width: '100%', marginBottom: '8px' }}
+            />
+            <input
+              type="password"
+              placeholder="确认新密码"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="login-input"
+              style={{ width: '100%' }}
+            />
+          </div>
+          {error && <div className="login-error" style={{ marginBottom: '16px' }}>{error}</div>}
+          <button
+            type="button"
+            className="login-button"
+            onClick={handleResetPassword}
+            disabled={loading}
+            style={{ width: '100%' }}
+          >
+            {loading ? '重置中...' : '重置密码'}
           </button>
         </div>
       </Modal>

@@ -1,5 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const logger = require('../utils/logger');
 const { getAllUsers, filterUsers, findUserById, banUser, unbanUser, deleteUser } = require('../store/userStore');
 const { sendMessageToUser, sendMessageToAllUsers } = require('../store/messageStore');
 const { addMessageHistory, addBroadcastHistory, getMessageHistory, deleteHistory } = require('../store/messageHistoryStore');
@@ -36,16 +37,16 @@ router.post('/login', loginLimiter, async (req, res) => {
       req.session.isAdmin = true;
       req.session.loginTime = Date.now();
       
-      console.log('[admin] 管理员登录成功');
+      logger.info('admin', '管理员登录成功');
       res.json({ message: '登录成功', success: true });
     } else {
-      console.log('[admin] 管理员登录失败：密码错误');
+      logger.warn('admin', '管理员登录失败：密码错误');
       // 延迟响应以防止暴力破解（可选）
       await new Promise(resolve => setTimeout(resolve, 500));
       res.status(401).json({ message: '密码错误' });
     }
   } catch (e) {
-    console.error('[admin] login error:', e);
+    logger.error('admin', 'login error:', e);
     res.status(500).json({ message: '登录失败，请稍后重试' });
   }
 });
@@ -54,7 +55,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 router.post('/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      console.error('[admin] logout error:', err);
+      logger.error('admin', 'logout error:', err);
       return res.status(500).json({ message: '登出失败' });
     }
     res.json({ message: '已登出', success: true });
@@ -101,7 +102,7 @@ router.get('/users', (req, res) => {
       totalPages: Math.ceil(users.length / limitNum),
     });
   } catch (e) {
-    console.error('[admin] get users error:', e);
+    logger.error('admin', 'get users error:', e);
     res.status(500).json({ message: '获取用户列表失败' });
   }
 });
@@ -117,7 +118,7 @@ router.get('/users/:userId', async (req, res) => {
     const { password, ...userInfo } = user;
     res.json({ user: userInfo });
   } catch (e) {
-    console.error('[admin] get user error:', e);
+    logger.error('admin', 'get user error:', e);
     res.status(500).json({ message: '获取用户详情失败' });
   }
 });
@@ -145,7 +146,7 @@ router.post('/users/:userId/ban', (req, res) => {
     const { password, ...userInfo } = user;
     res.json({ message: '用户已封禁', user: userInfo });
   } catch (e) {
-    console.error('[admin] ban user error:', e);
+    logger.error('admin', 'ban user error:', e);
     res.status(400).json({ message: e.message || '封禁用户失败' });
   }
 });
@@ -158,7 +159,7 @@ router.post('/users/:userId/unban', (req, res) => {
     const { password, ...userInfo } = user;
     res.json({ message: '用户已解封', user: userInfo });
   } catch (e) {
-    console.error('[admin] unban user error:', e);
+    logger.error('admin', 'unban user error:', e);
     res.status(400).json({ message: e.message || '解封用户失败' });
   }
 });
@@ -170,7 +171,7 @@ router.delete('/users/:userId', (req, res) => {
     deleteUser(userId);
     res.json({ message: '用户已删除' });
   } catch (e) {
-    console.error('[admin] delete user error:', e);
+    logger.error('admin', 'delete user error:', e);
     res.status(400).json({ message: e.message || '删除用户失败' });
   }
 });
@@ -210,7 +211,7 @@ router.post('/users/:userId/message', async (req, res) => {
     addMessageHistory({ userId, title: title.trim(), content: content.trim(), type: 'single' });
     res.json({ message: '消息已发送', data: message });
   } catch (e) {
-    console.error('[admin] send message error:', e);
+    logger.error('admin', 'send message error:', e);
     res.status(500).json({ message: e.message || '发送消息失败' });
   }
 });
@@ -256,7 +257,7 @@ router.post('/users/message/all', (req, res) => {
       data: messages 
     });
   } catch (e) {
-    console.error('[admin] send message to all users error:', e);
+    logger.error('admin', 'send message to all users error:', e);
     res.status(500).json({ message: e.message || '发送消息失败' });
   }
 });
@@ -268,7 +269,7 @@ router.get('/message-history', (req, res) => {
     const result = getMessageHistory({ page, limit, type, userId });
     res.json(result);
   } catch (e) {
-    console.error('[admin] get message history error:', e);
+    logger.error('admin', 'get message history error:', e);
     res.status(500).json({ message: '获取发送历史失败' });
   }
 });
@@ -284,7 +285,7 @@ router.delete('/message-history/:historyId', (req, res) => {
       res.status(404).json({ message: '历史记录不存在' });
     }
   } catch (e) {
-    console.error('[admin] delete message history error:', e);
+    logger.error('admin', 'delete message history error:', e);
     res.status(500).json({ message: '删除历史记录失败' });
   }
 });

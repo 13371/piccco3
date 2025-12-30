@@ -60,6 +60,19 @@
   line-height: 1.6;
   color: var(--text-color);
   margin: 0;
+  margin-bottom: 12px;
+}
+
+.feedback-tips {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: var(--bg-color);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-color);
 }
 
 .feedback-email-button {

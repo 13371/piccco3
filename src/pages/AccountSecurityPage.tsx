@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import { useUserStore } from '../stores/userStore';
 import { useTranslation } from '../i18n/useTranslation';
+import { API_BASE_URL } from '../config/api';
 import Modal from '../components/Modal';
 import './AccountSecurityPage.css';
 
@@ -29,6 +30,16 @@ const AccountSecurityPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // 忘记隐私密码相关状态
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordCode, setForgotPasswordCode] = useState('');
+  const [forgotPasswordNewPassword, setForgotPasswordNewPassword] = useState('');
+  const [forgotPasswordConfirmPassword, setForgotPasswordConfirmPassword] = useState('');
+  const [forgotPasswordError, setForgotPasswordError] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState('');
+  const [forgotPasswordCodeCountdown, setForgotPasswordCodeCountdown] = useState(0);
 
   // 登录密码相关状态
   const [emailForChange, setEmailForChange] = useState('');
@@ -47,6 +58,7 @@ const AccountSecurityPage = () => {
   useEffect(() => {
     if (currentUser?.email) {
       setEmailForChange(currentUser.email);
+      setForgotPasswordEmail(currentUser.email);
     }
   }, [currentUser]);
 
@@ -77,6 +89,14 @@ const AccountSecurityPage = () => {
       return () => clearTimeout(timer);
     }
   }, [codeCountdown]);
+
+  // 忘记隐私密码验证码倒计时
+  useEffect(() => {
+    if (forgotPasswordCodeCountdown > 0) {
+      const timer = setTimeout(() => setForgotPasswordCodeCountdown(forgotPasswordCodeCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [forgotPasswordCodeCountdown]);
 
   const handleSendCode = async () => {
     if (!emailForChange) {
@@ -130,6 +150,82 @@ const AccountSecurityPage = () => {
     }
   };
 
+  const handleSendForgotPasswordCode = async () => {
+    if (!forgotPasswordEmail) {
+      setForgotPasswordError('请输入邮箱');
+      return;
+    }
+    setForgotPasswordError('');
+    const result = await sendRegisterCode(forgotPasswordEmail);
+    if (result.ok) {
+      setForgotPasswordCodeCountdown(60);
+      setForgotPasswordSuccess('验证码已发送到您的邮箱');
+      setTimeout(() => setForgotPasswordSuccess(''), 3000);
+    } else {
+      setForgotPasswordError(result.message || '发送验证码失败');
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotPasswordError('');
+    setForgotPasswordSuccess('');
+
+    if (!forgotPasswordEmail) {
+      setForgotPasswordError('请输入邮箱');
+      return;
+    }
+
+    if (!forgotPasswordCode) {
+      setForgotPasswordError('请输入邮箱验证码');
+      return;
+    }
+
+    if (!forgotPasswordNewPassword || !forgotPasswordConfirmPassword) {
+      setForgotPasswordError('请输入新密码并确认');
+      return;
+    }
+
+    if (forgotPasswordNewPassword !== forgotPasswordConfirmPassword) {
+      setForgotPasswordError('两次输入的新密码不一致');
+      return;
+    }
+
+    if (forgotPasswordNewPassword.length < 4) {
+      setForgotPasswordError('密码长度至少为4位');
+      return;
+    }
+
+    // 验证邮箱验证码
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotPasswordEmail, code: forgotPasswordCode }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setForgotPasswordError(data.message || '验证码错误或已过期');
+        return;
+      }
+
+      // 验证码验证成功，重置隐私密码
+      updateFolder(privacyFolder.id, { password: forgotPasswordNewPassword });
+      setForgotPasswordSuccess('隐私文件夹密码已重置');
+      setForgotPasswordNewPassword('');
+      setForgotPasswordConfirmPassword('');
+      setForgotPasswordCode('');
+      setTimeout(() => {
+        setShowForgotPasswordModal(false);
+        setForgotPasswordSuccess('');
+      }, 2000);
+    } catch (e) {
+      setForgotPasswordError('网络错误，请稍后重试');
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -142,6 +238,11 @@ const AccountSecurityPage = () => {
 
     if (newPassword !== confirmPassword) {
       setError('两次输入的新密码不一致');
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      setError('密码长度至少为4位');
       return;
     }
 
@@ -182,11 +283,11 @@ const AccountSecurityPage = () => {
 
   return (
     <div className="account-security-page">
-      <div className="account-security-header">
-        <button className="back-button" onClick={() => navigate(-1)}>
-          ← 返回
+      <div className="page-header">
+        <button className="page-back-button" onClick={() => navigate(-1)}>
+          {t('back')}
         </button>
-        <h1 className="page-title">账号与安全</h1>
+        <h1 className="page-title">{t('accountSecurity')}</h1>
       </div>
       <div className="account-security-content">
         {/* 修改登录密码 */}
@@ -247,13 +348,32 @@ const AccountSecurityPage = () => {
           </div>
           <form onSubmit={handleSubmit} className="account-security-form">
             {hasPassword && (
-              <input
-                type="password"
-                className="security-input"
-                placeholder="当前密码"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-              />
+              <>
+                <input
+                  type="password"
+                  className="security-input"
+                  placeholder="当前密码"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                />
+                <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPasswordModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#667eea',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      padding: '4px 0',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    忘记密码？
+                  </button>
+                </div>
+              </>
             )}
             <input
               type="password"
@@ -319,6 +439,88 @@ const AccountSecurityPage = () => {
           )}
         </div>
       </div>
+
+      {/* 忘记隐私密码对话框 */}
+      <Modal
+        isOpen={showForgotPasswordModal}
+        onClose={() => {
+          setShowForgotPasswordModal(false);
+          setForgotPasswordError('');
+          setForgotPasswordSuccess('');
+          setForgotPasswordCode('');
+          setForgotPasswordNewPassword('');
+          setForgotPasswordConfirmPassword('');
+        }}
+        title="通过邮箱验证码重置隐私密码"
+      >
+        <form onSubmit={handleForgotPasswordSubmit} className="account-security-form" style={{ padding: '20px 0' }}>
+          <div style={{ marginBottom: '16px', fontSize: '14px', color: '#666' }}>
+            请输入您的邮箱，我们将发送验证码到您的邮箱，验证后即可重置隐私文件夹密码。
+          </div>
+          <input
+            type="email"
+            className="security-input"
+            placeholder="邮箱"
+            value={forgotPasswordEmail}
+            onChange={(e) => setForgotPasswordEmail(e.target.value)}
+            disabled={!!forgotPasswordCodeCountdown}
+          />
+          <div className="code-row">
+            <input
+              type="text"
+              className="security-input code-input"
+              placeholder="邮箱验证码"
+              value={forgotPasswordCode}
+              onChange={(e) => setForgotPasswordCode(e.target.value)}
+              maxLength={6}
+            />
+            <button
+              type="button"
+              className="send-code-btn"
+              onClick={handleSendForgotPasswordCode}
+              disabled={forgotPasswordCodeCountdown > 0 || !forgotPasswordEmail}
+            >
+              {forgotPasswordCodeCountdown > 0 ? `重新发送(${forgotPasswordCodeCountdown}s)` : '发送验证码'}
+            </button>
+          </div>
+          <input
+            type="password"
+            className="security-input"
+            placeholder="新密码"
+            value={forgotPasswordNewPassword}
+            onChange={(e) => setForgotPasswordNewPassword(e.target.value)}
+          />
+          <input
+            type="password"
+            className="security-input"
+            placeholder="确认新密码"
+            value={forgotPasswordConfirmPassword}
+            onChange={(e) => setForgotPasswordConfirmPassword(e.target.value)}
+          />
+          {forgotPasswordError && <div className="security-error">{forgotPasswordError}</div>}
+          {forgotPasswordSuccess && <div className="security-success">{forgotPasswordSuccess}</div>}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgotPasswordModal(false);
+                setForgotPasswordError('');
+                setForgotPasswordSuccess('');
+                setForgotPasswordCode('');
+                setForgotPasswordNewPassword('');
+                setForgotPasswordConfirmPassword('');
+              }}
+              className="security-button"
+              style={{ backgroundColor: '#e5e7eb', color: '#333', flex: 1 }}
+            >
+              取消
+            </button>
+            <button type="submit" className="security-button" style={{ flex: 1 }}>
+              重置密码
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* 注销确认对话框 */}
       <Modal

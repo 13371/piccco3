@@ -21,20 +21,11 @@ const UrlPage = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
-
-  const getNextColor = (current: FolderColor): FolderColor => {
-    const index = colors.indexOf(current);
-    const nextIndex = index === -1 ? 0 : (index + 1) % colors.length;
-    return colors[nextIndex];
-  };
   const navigate = useNavigate();
   
-  const urls = useDataStore((state) => state.urls);
+  const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
   const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'url'));
   const addUrl = useDataStore((state) => state.addUrl);
-  const deleteUrl = useDataStore((state) => state.deleteUrl);
-  const toggleUrlStar = useDataStore((state) => state.toggleUrlStar);
   const updateUrl = useDataStore((state) => state.updateUrl);
   const addFolder = useDataStore((state) => state.addFolder);
   const deleteFolder = useDataStore((state) => state.deleteFolder);
@@ -151,11 +142,6 @@ const UrlPage = () => {
     };
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, urlId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ id: urlId, x: e.clientX, y: e.clientY });
-  };
 
   const url = contextMenu ? sortedUrls.find((u) => u.id === contextMenu.id) : null;
 

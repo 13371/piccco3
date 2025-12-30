@@ -9,6 +9,7 @@ interface User {
   email: string;
   username: string;
   createdAt: string;
+  avatar?: string;
   isBanned?: boolean;
   bannedAt?: string | null;
   banReason?: string | null;
@@ -17,7 +18,9 @@ interface User {
 interface UserState {
   currentUser: User | null;
   token: string | null;
+  refreshToken: string | null;
   login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  refreshAccessToken: () => Promise<{ ok: boolean; message?: string }>;
   registerWithEmail: (data: {
     email: string;
     username: string;
@@ -32,6 +35,8 @@ interface UserState {
   ) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   isAuthenticated: () => boolean;
+  isBanned: () => boolean;
+  checkBanStatus: () => Promise<boolean | 'unbanned' | false>;
   updateAvatar: (avatar: string) => void;
   updateUsername: (username: string) => void;
   deleteAccount: () => Promise<{ ok: boolean; message?: string }>;
@@ -42,6 +47,7 @@ export const useUserStore = create<UserState>()(
     (set, get) => ({
       currentUser: null,
       token: null,
+      refreshToken: null,
 
       login: async (email: string, password: string) => {
         try {
@@ -153,6 +159,7 @@ export const useUserStore = create<UserState>()(
           set({
             currentUser: data.user,
             token: data.token,
+            refreshToken: data.refreshToken || null,
           });
 
           // 保存登录时间（如果之前没有保存）
@@ -271,6 +278,7 @@ export const useUserStore = create<UserState>()(
           set({
             currentUser: data.user,
             token: data.token,
+            refreshToken: data.refreshToken || null,
           });
 
           // 确保登录时间已保存
@@ -330,6 +338,37 @@ export const useUserStore = create<UserState>()(
         }
       },
 
+      refreshAccessToken: async () => {
+        const refreshToken = get().refreshToken;
+        if (!refreshToken) {
+          return { ok: false, message: '没有刷新Token' };
+        }
+        
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+          
+          const data = await res.json();
+          
+          if (!res.ok) {
+            return { ok: false, message: data.message || '刷新Token失败' };
+          }
+          
+          set({
+            token: data.token,
+            refreshToken: data.refreshToken || refreshToken,
+          });
+          
+          return { ok: true };
+        } catch (e) {
+          console.error('[userStore] refresh token error:', e);
+          return { ok: false, message: '网络错误，请稍后重试' };
+        }
+      },
+      
       logout: () => {
         // 清除用户相关的本地存储数据
         const currentUser = get().currentUser;
@@ -342,6 +381,7 @@ export const useUserStore = create<UserState>()(
         set({
           currentUser: null,
           token: null,
+          refreshToken: null,
         });
       },
 
@@ -362,7 +402,11 @@ export const useUserStore = create<UserState>()(
         }
         
         try {
-          const res = await fetch(`${API_BASE_URL}/admin/users/${state.currentUser.id}`);
+          const res = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${state.token}`,
+            },
+          });
           if (res.ok) {
             const data = await res.json();
             const wasBanned = state.currentUser?.isBanned === true;
@@ -370,10 +414,11 @@ export const useUserStore = create<UserState>()(
             
             if (isNowBanned) {
               // 用户被封禁，清除登录状态
-              set({
-                currentUser: null,
-                token: null,
-              });
+        set({
+          currentUser: null,
+          token: null,
+          refreshToken: null,
+        });
               return true;
             }
             
@@ -514,10 +559,11 @@ export const useUserStore = create<UserState>()(
           });
 
           // 清除用户信息
-          set({
-            currentUser: null,
-            token: null,
-          });
+        set({
+          currentUser: null,
+          token: null,
+          refreshToken: null,
+        });
 
           return { ok: true, message: '账户注销成功' };
         } catch (e) {

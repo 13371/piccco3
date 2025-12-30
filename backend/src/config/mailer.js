@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const logger = require('../utils/logger');
 
 const {
   SMTP_HOST,
@@ -56,9 +57,9 @@ async function sendVerificationCodeEmail(to, code) {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`[mailer] 验证码已发送到 ${to}`);
+    logger.info('mailer', `验证码已发送到 ${to}`);
   } catch (error) {
-    console.error('[mailer] 发送邮件失败:', error);
+    logger.error('mailer', '发送邮件失败:', error);
     throw new Error(`发送邮件失败: ${error.message}`);
   }
 }

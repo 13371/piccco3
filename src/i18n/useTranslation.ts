@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../stores/settingsStore';
-import { getTranslation, Language } from './translations';
+import { getTranslation } from './translations';
 
 export const useTranslation = () => {
   const language = useSettingsStore((state) => state.language);

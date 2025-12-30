@@ -1,4 +1,5 @@
 // 统一错误处理中间件
+const logger = require('./logger');
 
 /**
  * 自定义错误类
@@ -74,7 +75,7 @@ function errorHandler(err, req, res, next) {
   }
 
   // 默认错误
-  console.error('[errorHandler] 未处理的错误:', err);
+  logger.error('errorHandler', '未处理的错误:', err);
   const statusCode = err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production' 
     ? '服务器内部错误' 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
+import { TrashItem } from '../types';
 import { useTranslation } from '../i18n/useTranslation';
 import { format } from 'date-fns';
 import ListItem from '../components/ListItem';
@@ -19,7 +20,7 @@ const TrashPage = () => {
     cleanExpiredTrash();
   }, []);
 
-  const getTrashItemTitle = (item: any) => {
+  const getTrashItemTitle = (item: TrashItem) => {
     if (item.type === 'note') {
       return item.data.content.substring(0, 50) + (item.data.content.length > 50 ? '...' : '');
     } else if (item.type === 'url') {
@@ -29,13 +30,13 @@ const TrashPage = () => {
     }
   };
 
-  const getTrashItemSubtitle = (item: any) => {
+  const getTrashItemSubtitle = (item: TrashItem) => {
     const deletedDate = format(new Date(item.deletedAt), 'yyyy-MM-dd HH:mm');
     const daysLeft = Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - item.deletedAt)) / (24 * 60 * 60 * 1000));
     return `删除于 ${deletedDate} · 剩余 ${daysLeft} 天`;
   };
 
-  const getTrashItemIcon = (item: any) => {
+  const getTrashItemIcon = (item: TrashItem) => {
     if (item.type === 'note') return '📝';
     if (item.type === 'url') return '🌐';
     return '📁';

@@ -1,17 +1,21 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../i18n/useTranslation';
+import { useUserStore } from '../stores/userStore';
 import './UserAgreementPage.css';
 
 const UserAgreementPage = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const isAuthenticated = useUserStore((state) => state.isAuthenticated());
 
   return (
     <div className="user-agreement-page">
       <div className="page-header">
-        <button className="page-back-button" onClick={() => navigate(-1)}>
-          {t('back')}
-        </button>
+        {isAuthenticated && (
+          <button className="page-back-button" onClick={() => navigate(-1)}>
+            {t('back')}
+          </button>
+        )}
         <h1 className="page-title">{t('userAgreementTitle')}</h1>
       </div>
 
@@ -80,6 +84,7 @@ const UserAgreementPage = () => {
             <li>{t('agreementPrivacyItem2')}</li>
             <li>{t('agreementPrivacyItem3')}</li>
             <li>{t('agreementPrivacyItem4')}</li>
+            <li>{t('agreementPrivacyItem5')}</li>
           </ul>
         </section>
 

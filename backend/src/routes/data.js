@@ -1,11 +1,13 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { getUserData, saveUserData, updateUserData, deleteUserData } = require('../store/userDataStore');
-const { CONFIG } = require('../utils/config');
+const logger = require('../utils/logger');
+const { getUserData, saveUserData, updateUserData } = require('../store/userDataStore');
 
 const router = express.Router();
 
-const JWT_SECRET = CONFIG.JWT_SECRET;
+// 直接从环境变量读取 JWT_SECRET，与 auth.js 保持一致
+const JWT_SECRET = process.env.JWT_SECRET;
+const FINAL_JWT_SECRET = JWT_SECRET || 'dev-secret-change-me-in-production';
 
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
@@ -16,12 +18,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ message: '未授权，请先登录' });
   }
 
-  if (!JWT_SECRET) {
-    console.error('[data] JWT_SECRET 未配置');
-    return res.status(500).json({ message: '服务器配置错误' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, FINAL_JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ message: 'Token无效或已过期' });
     }
@@ -30,8 +27,40 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+/**
+ * @swagger
+ * /api/v1/data/sync:
+ *   get:
+ *     summary: 获取用户数据（完整同步）
+ *     tags: [数据同步]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     folders:
+ *                       type: array
+ *                     notes:
+ *                       type: array
+ *                     urls:
+ *                       type: array
+ *                     trash:
+ *                       type: array
+ *       401:
+ *         description: 未授权
+ */
 // 获取用户数据（完整同步）
-router.get('/sync', authenticateToken, (req, res) => {
+router.get('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
@@ -39,7 +68,7 @@ router.get('/sync', authenticateToken, (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const userData = getUserData(userId);
+    const userData = await getUserData(userId);
     
     res.json({
       success: true,
@@ -52,13 +81,13 @@ router.get('/sync', authenticateToken, (req, res) => {
       },
     });
   } catch (e) {
-    console.error('[data] get sync error:', e);
+    logger.error('data', 'get sync error:', e);
     res.status(500).json({ message: '获取数据失败' });
   }
 });
 
 // 同步用户数据到服务器（完整同步）
-router.post('/sync', authenticateToken, (req, res) => {
+router.post('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     const { folders, notes, urls, trash } = req.body || {};
@@ -85,7 +114,7 @@ router.post('/sync', authenticateToken, (req, res) => {
       trash: trash || [],
     };
     
-    const savedData = saveUserData(userId, userData);
+    const savedData = await saveUserData(userId, userData);
     
     res.json({
       success: true,
@@ -95,13 +124,13 @@ router.post('/sync', authenticateToken, (req, res) => {
       },
     });
   } catch (e) {
-    console.error('[data] sync error:', e);
+    logger.error('data', 'sync error:', e);
     res.status(500).json({ message: '同步数据失败' });
   }
 });
 
 // 获取最后同步时间
-router.get('/sync/last', authenticateToken, (req, res) => {
+router.get('/sync/last', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
@@ -109,14 +138,14 @@ router.get('/sync/last', authenticateToken, (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const userData = getUserData(userId);
+    const userData = await getUserData(userId);
     
     res.json({
       success: true,
       lastSyncAt: userData.lastSyncAt || null,
     });
   } catch (e) {
-    console.error('[data] get last sync error:', e);
+    logger.error('data', 'get last sync error:', e);
     res.status(500).json({ message: '获取同步时间失败' });
   }
 });

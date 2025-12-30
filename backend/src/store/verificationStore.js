@@ -1,4 +1,5 @@
 // 简单的内存验证码存储（生产环境建议使用 Redis 等独立存储）
+const logger = require('../utils/logger');
 
 const codes = new Map();
 
@@ -16,23 +17,25 @@ function saveCode(email, code) {
   codes.set(normalizeEmail(email), { code, expiresAt });
 }
 
-function verifyCode(email, code) {
+function verifyCode(email, code, deleteOnSuccess = true) {
   const record = codes.get(normalizeEmail(email));
   if (!record) {
-    console.log(`[verificationStore] 邮箱 ${email} 没有验证码记录`);
+    logger.debug('verificationStore', `邮箱 ${email} 没有验证码记录`);
     return false;
   }
   if (Date.now() > record.expiresAt) {
-    codes.delete(email);
-    console.log(`[verificationStore] 邮箱 ${email} 的验证码已过期`);
+    codes.delete(normalizeEmail(email));
+    logger.debug('verificationStore', `邮箱 ${email} 的验证码已过期`);
     return false;
   }
   const ok = record.code === code;
   if (ok) {
-    codes.delete(normalizeEmail(email));
-    console.log(`[verificationStore] 邮箱 ${email} 验证码验证成功`);
+    if (deleteOnSuccess) {
+      codes.delete(normalizeEmail(email));
+    }
+    logger.debug('verificationStore', `邮箱 ${email} 验证码验证成功`);
   } else {
-    console.log(`[verificationStore] 邮箱 ${email} 验证码错误`);
+    logger.debug('verificationStore', `邮箱 ${email} 验证码错误`);
   }
   return ok;
 }
