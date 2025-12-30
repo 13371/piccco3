@@ -149,8 +149,8 @@ const loginHTML = `
         const data = await res.json();
         
         if (res.ok && data.success) {
-          // 登录成功，刷新页面
-          window.location.reload();
+          // 登录成功，跳转到管理页面
+          window.location.href = '/admin';
         } else {
           showError(data.message || '登录失败，请检查密码');
         }
