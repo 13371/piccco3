@@ -61,8 +61,10 @@ const FINAL_SESSION_SECRET = CONFIG.SESSION_SECRET || 'piccco-admin-secret-chang
 
 // 安全HTTP头（Helmet）
 // 允许内联脚本和内联事件处理器（管理员界面需要）
+// 关闭 HSTS 和默认的 upgrade-insecure-requests，避免浏览器强制把 http 升级成 https 导致管理员接口请求失败
 app.use(helmet({
   contentSecurityPolicy: {
+    useDefaults: false, // 不使用默认指令，避免自动添加 upgrade-insecure-requests
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -72,6 +74,7 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false, // 允许嵌入资源
+  hsts: false, // 不发送 Strict-Transport-Security 头，避免 http 被浏览器强制升级为 https
 }));
 
 app.use(
