@@ -1,237 +1,194 @@
-# 代码备份指南
+# piccco3 数据备份指南
 
-## 📦 已完成的备份操作
+## 备份文件存放位置
 
-### 1. **Git版本控制** ✅
-- ✅ 已初始化Git仓库
-- ✅ 已创建初始提交
-- ✅ 已配置.gitignore（忽略敏感文件）
+### 推荐位置
 
-### 2. **当前Git状态**
-```bash
-# 查看提交历史
-git log
-
-# 查看当前状态
-git status
-
-# 查看文件变更
-git diff
-```
-
-## 🔐 重要文件说明
-
-### 不应提交到Git的文件（已在.gitignore中）
-- ✅ `.env` - 环境变量（包含敏感信息）
-- ✅ `backend/data/` - 用户数据文件
-- ✅ `node_modules/` - 依赖包
-- ✅ `dist/` - 构建输出
-
-### 需要手动备份的文件
-- ⚠️ `.env` - 环境变量配置文件（包含JWT_SECRET、数据库密码等）
-- ⚠️ `backend/data/` - 用户数据（如果需要备份）
-
-## 💾 备份方案
-
-### 方案1: Git本地仓库（已完成）✅
-**优点**: 
-- 版本历史完整
-- 可以回退到任意版本
-- 轻量级
-
-**使用方法**:
-```bash
-# 查看提交历史
-git log --oneline
-
-# 创建新提交
-git add .
-git commit -m "描述你的更改"
-
-# 回退到之前的版本
-git checkout <commit-hash>
-```
-
-### 方案2: 远程Git仓库（推荐）⭐
-**推荐平台**:
-- GitHub (https://github.com)
-- GitLab (https://gitlab.com)
-- Gitee (https://gitee.com) - 国内访问快
-
-**操作步骤**:
-```bash
-# 1. 在GitHub/GitLab创建新仓库
-
-# 2. 添加远程仓库
-git remote add origin https://github.com/yourusername/piccco.git
-
-# 3. 推送代码
-git branch -M main
-git push -u origin main
-
-# 4. 后续更新
-git add .
-git commit -m "更新描述"
-git push
-```
-
-### 方案3: 压缩包备份
-**创建备份压缩包**:
-```bash
-# Windows PowerShell
-Compress-Archive -Path . -DestinationPath ../piccco-backup-$(Get-Date -Format 'yyyyMMdd').zip -Exclude node_modules,backend/data,dist
-
-# 或手动压缩（排除node_modules和backend/data目录）
-```
-
-**建议频率**: 每周或重大更新后
-
-### 方案4: 云存储备份
-**推荐服务**:
-- 百度网盘
-- 阿里云盘
-- OneDrive
-- Google Drive
-
-**备份内容**:
-- 整个项目文件夹（排除node_modules）
-- `.env`文件（单独加密备份）
-- 数据库备份（如果有）
-
-## 📋 备份检查清单
-
-### 代码备份 ✅
-- [x] Git仓库初始化
-- [x] 初始提交创建
-- [x] .gitignore配置
-- [ ] 远程仓库推送（可选）
-- [ ] 定期提交更新
-
-### 配置备份 ⚠️
-- [ ] `.env`文件备份（加密存储）
-- [ ] 环境变量文档记录
-- [ ] 数据库配置备份（如果有）
-
-### 数据备份 ⚠️
-- [ ] `backend/data/`目录备份（如果需要）
-- [ ] 用户数据导出（如果需要）
-
-## 🚀 快速备份命令
-
-### 创建完整备份
-```bash
-# 1. 提交所有更改
-git add .
-git commit -m "备份: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-
-# 2. 创建压缩包（排除node_modules和data）
-$date = Get-Date -Format 'yyyyMMdd-HHmmss'
-Compress-Archive -Path . -DestinationPath "../piccco-backup-$date.zip" -Force
-```
-
-### 推送到远程仓库
-```bash
-# 如果已配置远程仓库
-git push origin main
-
-# 如果未配置，先添加远程仓库
-git remote add origin <your-repo-url>
-git push -u origin main
-```
-
-## ⚠️ 重要提醒
-
-### 1. **环境变量安全**
-- ⚠️ **永远不要**将`.env`文件提交到Git
-- ⚠️ **永远不要**将`.env`文件分享给他人
-- ✅ 使用`.env.example`作为模板（不包含真实值）
-
-### 2. **用户数据安全**
-- ⚠️ `backend/data/`包含用户敏感数据
-- ✅ 已在.gitignore中排除
-- ⚠️ 如需备份，请加密存储
-
-### 3. **定期备份**
-- ✅ 每次重大更新后提交Git
-- ✅ 每周创建压缩包备份
-- ✅ 每月推送到远程仓库
-
-## 📝 备份最佳实践
-
-1. **Git提交规范**
+1. **服务器本地备份目录**（默认）：
    ```
-   git commit -m "类型: 简短描述
-   
-   详细说明（可选）
-   - 功能1
-   - 功能2
+   /root/piccco3-backups/
    ```
+   - 优点：快速、方便
+   - 缺点：如果服务器损坏，备份也会丢失
 
-2. **提交频率**
-   - 每次完成一个功能就提交
-   - 每天至少提交一次
-   - 重大更新立即提交
+2. **其他推荐位置**：
+   - `/home/backups/piccco3/` - 如果有多用户
+   - `/www/backups/piccco3/` - 放在网站目录外
+   - `/opt/backups/piccco3/` - 系统级备份目录
 
-3. **分支管理**
-   ```bash
-   # 创建功能分支
-   git checkout -b feature/new-feature
-   
-   # 完成后合并
-   git checkout main
-   git merge feature/new-feature
-   ```
+3. **远程备份**（强烈推荐）：
+   - 阿里云 OSS（对象存储）
+   - 腾讯云 COS（对象存储）
+   - 其他云存储服务
+   - FTP/SFTP 服务器
+   - 其他服务器
 
-## 🎯 推荐备份策略
+---
 
-### 日常开发
-1. ✅ Git本地提交（每次更改）
-2. ✅ 每周推送到远程仓库
+## 使用备份脚本
 
-### 重要节点
-1. ✅ Git标签标记版本
-   ```bash
-   git tag -a v1.0.0 -m "版本1.0.0"
-   git push origin v1.0.0
-   ```
+### 1. 设置脚本权限
 
-2. ✅ 创建压缩包备份
-
-3. ✅ 推送到多个远程仓库（GitHub + GitLab）
-
-## 📞 恢复代码
-
-### 从Git恢复
 ```bash
-# 查看所有提交
-git log --oneline
-
-# 恢复到指定提交
-git checkout <commit-hash>
-
-# 恢复到最新版本
-git checkout main
+cd /www/wwwroot/piccco3
+chmod +x backup_data.sh
 ```
 
-### 从压缩包恢复
-1. 解压备份文件
-2. 运行 `npm install` 安装依赖
-3. 复制`.env`文件（从安全位置）
-4. 启动服务
+### 2. 手动执行备份
 
-## ✅ 总结
+```bash
+./backup_data.sh
+```
 
-**当前状态**:
-- ✅ Git仓库已初始化
-- ✅ 初始提交已创建
-- ✅ .gitignore已配置
+### 3. 设置定时自动备份（推荐）
 
-**下一步建议**:
-1. 推送到远程Git仓库（GitHub/GitLab）
-2. 定期提交代码更新
-3. 创建.env.example模板文件
-4. 设置定期备份提醒
+#### 方法一：使用 crontab（推荐）
 
-**你的代码已经安全保存！** 🎉
+```bash
+# 编辑 crontab
+crontab -e
 
+# 添加以下行（每天凌晨2点自动备份）
+0 2 * * * /www/wwwroot/piccco3/backup_data.sh >> /root/piccco3-backups/cron.log 2>&1
 
+# 或者每天备份3次（凌晨2点、中午12点、晚上8点）
+0 2,12,20 * * * /www/wwwroot/piccco3/backup_data.sh >> /root/piccco3-backups/cron.log 2>&1
+```
+
+#### 方法二：使用宝塔面板定时任务
+
+1. 登录宝塔面板
+2. 进入 **计划任务**
+3. 添加任务：
+   - 任务类型：Shell 脚本
+   - 任务名称：piccco3 数据备份
+   - 执行周期：每天（或自定义）
+   - 脚本内容：
+     ```bash
+     /www/wwwroot/piccco3/backup_data.sh
+     ```
+
+---
+
+## 备份文件说明
+
+### 文件命名格式
+
+```
+piccco3-data-YYYYMMDD-HHMMSS.tar.gz
+```
+
+例如：`piccco3-data-20251230-143000.tar.gz`
+
+### 备份内容
+
+备份文件包含：
+- `data/users.json` - 用户账户信息
+- `data/messages.json` - 用户消息
+- `data/message-history.json` - 消息历史
+- `data/user-data/` - 所有用户数据（笔记、文件夹、URL等）
+
+### 备份文件大小
+
+- 小规模使用（<100用户）：通常 < 10MB
+- 中等规模（100-1000用户）：10MB - 100MB
+- 大规模（>1000用户）：可能 > 100MB
+
+---
+
+## 恢复备份
+
+### 1. 停止服务（可选，建议）
+
+```bash
+cd /www/wwwroot/piccco3/backend
+pm2 stop piccco-backend
+```
+
+### 2. 备份当前数据（以防万一）
+
+```bash
+cp -r /www/wwwroot/piccco3/backend/data /www/wwwroot/piccco3/backend/data.backup.$(date +%Y%m%d)
+```
+
+### 3. 解压备份文件
+
+```bash
+# 解压到临时目录
+cd /tmp
+tar -xzf /root/piccco3-backups/piccco3-data-20251230-143000.tar.gz
+
+# 恢复数据
+cp -r data/* /www/wwwroot/piccco3/backend/data/
+```
+
+### 4. 设置权限
+
+```bash
+chown -R www:www /www/wwwroot/piccco3/backend/data
+chmod -R 755 /www/wwwroot/piccco3/backend/data
+```
+
+### 5. 重启服务
+
+```bash
+cd /www/wwwroot/piccco3/backend
+pm2 restart piccco-backend
+```
+
+---
+
+## 远程备份配置（可选）
+
+### 使用阿里云 OSS
+
+```bash
+# 安装 ossutil
+wget http://gosspublic.alicdn.com/ossutil/1.7.14/ossutil64
+chmod 755 ossutil64
+mv ossutil64 /usr/local/bin/ossutil
+
+# 配置
+ossutil config
+
+# 上传备份
+ossutil cp /root/piccco3-backups/piccco3-data-*.tar.gz oss://your-bucket-name/piccco3-backups/
+```
+
+### 使用 rsync 同步到其他服务器
+
+```bash
+rsync -avz /root/piccco3-backups/ user@backup-server:/backups/piccco3/
+```
+
+---
+
+## 备份策略建议
+
+1. **每日备份**：保留最近30天的备份
+2. **每周备份**：保留最近12周的备份
+3. **每月备份**：保留最近12个月的备份
+
+脚本已自动清理30天前的备份，如需修改保留时间，编辑 `backup_data.sh` 中的 `-mtime +30` 参数。
+
+---
+
+## 查看备份日志
+
+```bash
+# 查看备份日志
+cat /root/piccco3-backups/backup.log
+
+# 查看最近的备份
+ls -lht /root/piccco3-backups/*.tar.gz | head -10
+```
+
+---
+
+## 注意事项
+
+1. **定期检查备份**：确保备份文件正常生成
+2. **测试恢复**：定期测试备份文件是否可以正常恢复
+3. **异地备份**：重要数据建议同时备份到其他服务器或云存储
+4. **权限保护**：备份文件包含敏感数据，确保权限设置正确
+5. **磁盘空间**：定期检查备份目录的磁盘空间
