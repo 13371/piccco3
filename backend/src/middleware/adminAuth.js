@@ -4,8 +4,10 @@ const logger = require('../utils/logger');
 
 // 从环境变量获取密码，如果没有设置则使用默认值（仅开发环境）
 const ADMIN_PASSWORD_PLAIN = process.env.ADMIN_PASSWORD || 'admin123';
-// 如果设置了ADMIN_PASSWORD_HASH，优先使用哈希值
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
+// 如果设置了ADMIN_PASSWORD_HASH，优先使用哈希值（去掉可能的首尾空格）
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH
+  ? process.env.ADMIN_PASSWORD_HASH.trim()
+  : undefined;
 
 // 初始化时生成哈希（如果使用明文密码）
 let adminPasswordHash = ADMIN_PASSWORD_HASH;
