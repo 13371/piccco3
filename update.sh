@@ -30,3 +30,4 @@ npm run build
 echo "更新完成！"
 echo "请检查服务状态：pm2 status"
 
+

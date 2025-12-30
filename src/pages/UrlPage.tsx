@@ -98,6 +98,9 @@ const UrlPage = () => {
     return b.updatedAt - a.updatedAt;
   });
 
+  // 获取当前选中的 URL（需要在 handleAddUrl 之前定义）
+  const url = contextMenu ? sortedUrls.find((u) => u.id === contextMenu.id) : null;
+
   useEffect(() => {
     const handleClickOutside = () => {
       setContextMenu(null);
@@ -141,9 +144,6 @@ const UrlPage = () => {
       eventEmitter.off('add-item', handleAddItem);
     };
   }, []);
-
-
-  const url = contextMenu ? sortedUrls.find((u) => u.id === contextMenu.id) : null;
 
   // 排序文件夹：星标置顶，然后按手动排序（order）
   const sortedFolders = [...folders].sort((a, b) => {
