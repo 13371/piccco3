@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
-import { TrashItem } from '../types';
+import { TrashItem, Note, Url, Folder } from '../types';
 import { useTranslation } from '../i18n/useTranslation';
 import { format } from 'date-fns';
 import ListItem from '../components/ListItem';
@@ -22,11 +22,14 @@ const TrashPage = () => {
 
   const getTrashItemTitle = (item: TrashItem) => {
     if (item.type === 'note') {
-      return item.data.content.substring(0, 50) + (item.data.content.length > 50 ? '...' : '');
+      const note = item.data as Note;
+      return note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '');
     } else if (item.type === 'url') {
-      return item.data.title;
+      const url = item.data as Url;
+      return url.title;
     } else {
-      return item.data.name;
+      const folder = item.data as Folder;
+      return folder.name;
     }
   };
 
