@@ -109,6 +109,10 @@ if (CONFIG.NODE_ENV === 'production') {
 }
 
 // Session配置
+// 检查是否使用 HTTPS（通过环境变量或请求头判断）
+const isHTTPS = process.env.FORCE_HTTPS === 'true' || 
+                (process.env.NODE_ENV === 'production' && process.env.USE_HTTPS === 'true');
+
 app.use(
   session({
     secret: FINAL_SESSION_SECRET,
@@ -116,7 +120,7 @@ app.use(
     saveUninitialized: false,
     name: 'piccco.admin.sid', // 自定义session名称，避免与其他应用冲突
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS时设为true
+      secure: isHTTPS, // 只在明确使用 HTTPS 时设为 true
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24小时
       sameSite: 'lax', // CSRF保护

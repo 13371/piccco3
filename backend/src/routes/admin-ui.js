@@ -149,8 +149,11 @@ const loginHTML = `
         const data = await res.json();
         
         if (res.ok && data.success) {
-          // 登录成功，跳转到管理页面
-          window.location.href = '/admin';
+          // 登录成功，等待一下确保 session 已保存，然后跳转
+          // 使用 replace 而不是 href，避免浏览器历史记录问题
+          setTimeout(() => {
+            window.location.replace('/admin');
+          }, 100);
         } else {
           showError(data.message || '登录失败，请检查密码');
         }
