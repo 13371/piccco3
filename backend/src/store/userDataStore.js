@@ -38,6 +38,12 @@ async function readUserData(userId) {
     notes: [],
     urls: [],
     trash: [],
+    settings: {
+      sortMode: 'updatedAt',
+      fontSize: 'medium',
+      language: 'zh',
+      nightMode: 'auto',
+    },
     lastSyncAt: null,
   };
   return await readJsonFile(filePath, defaultData);

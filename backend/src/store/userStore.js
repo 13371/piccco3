@@ -199,6 +199,26 @@ async function updatePassword(email, newPassword) {
   return user;
 }
 
+// 更新用户信息（头像、用户名等）
+function updateUser(userId, updates) {
+  const users = readUsers();
+  const user = users.find((u) => u.id === userId);
+  if (!user) {
+    throw new Error('用户不存在');
+  }
+  
+  // 只允许更新特定字段
+  if (updates.username !== undefined) {
+    user.username = updates.username;
+  }
+  if (updates.avatar !== undefined) {
+    user.avatar = updates.avatar;
+  }
+  
+  writeUsers(users);
+  return user;
+}
+
 module.exports = {
   createUser,
   findUserByEmail,
@@ -210,6 +230,7 @@ module.exports = {
   unbanUser,
   deleteUser,
   updatePassword,
+  updateUser,
 };
 
 

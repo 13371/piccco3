@@ -77,6 +77,12 @@ router.get('/sync', authenticateToken, async (req, res) => {
         notes: userData.notes || [],
         urls: userData.urls || [],
         trash: userData.trash || [],
+        settings: userData.settings || {
+          sortMode: 'updatedAt',
+          fontSize: 'medium',
+          language: 'zh',
+          nightMode: 'auto',
+        },
         lastSyncAt: userData.lastSyncAt || null,
       },
     });
@@ -90,7 +96,7 @@ router.get('/sync', authenticateToken, async (req, res) => {
 router.post('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { folders, notes, urls, trash } = req.body || {};
+    const { folders, notes, urls, trash, settings } = req.body || {};
     
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ message: '用户ID无效' });
@@ -107,11 +113,20 @@ router.post('/sync', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '数据量过大，请分批同步' });
     }
     
+    // 获取当前数据，保留设置（如果请求中没有提供设置，保留现有设置）
+    const currentData = await getUserData(userId);
+    
     const userData = {
       folders: folders || [],
       notes: notes || [],
       urls: urls || [],
       trash: trash || [],
+      settings: settings || currentData.settings || {
+        sortMode: 'updatedAt',
+        fontSize: 'medium',
+        language: 'zh',
+        nightMode: 'auto',
+      },
     };
     
     const savedData = await saveUserData(userId, userData);
@@ -147,6 +162,100 @@ router.get('/sync/last', authenticateToken, async (req, res) => {
   } catch (e) {
     logger.error('data', 'get last sync error:', e);
     res.status(500).json({ message: '获取同步时间失败' });
+  }
+});
+
+// 获取用户设置
+router.get('/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ message: '用户ID无效' });
+    }
+    
+    const userData = await getUserData(userId);
+    
+    res.json({
+      success: true,
+      settings: userData.settings || {
+        sortMode: 'updatedAt',
+        fontSize: 'medium',
+        language: 'zh',
+        nightMode: 'auto',
+      },
+    });
+  } catch (e) {
+    logger.error('data', 'get settings error:', e);
+    res.status(500).json({ message: '获取设置失败' });
+  }
+});
+
+// 更新用户设置
+router.patch('/settings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { sortMode, fontSize, language, nightMode } = req.body || {};
+    
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ message: '用户ID无效' });
+    }
+    
+    // 获取当前数据
+    const currentData = await getUserData(userId);
+    const currentSettings = currentData.settings || {
+      sortMode: 'updatedAt',
+      fontSize: 'medium',
+      language: 'zh',
+      nightMode: 'auto',
+    };
+    
+    // 构建更新对象（只更新提供的字段）
+    const updatedSettings = {
+      ...currentSettings,
+    };
+    
+    if (sortMode !== undefined) {
+      if (!['updatedAt', 'name'].includes(sortMode)) {
+        return res.status(400).json({ message: '无效的排序模式' });
+      }
+      updatedSettings.sortMode = sortMode;
+    }
+    
+    if (fontSize !== undefined) {
+      if (!['small', 'medium', 'large'].includes(fontSize)) {
+        return res.status(400).json({ message: '无效的字体大小' });
+      }
+      updatedSettings.fontSize = fontSize;
+    }
+    
+    if (language !== undefined) {
+      if (!['zh', 'en'].includes(language)) {
+        return res.status(400).json({ message: '无效的语言' });
+      }
+      updatedSettings.language = language;
+    }
+    
+    if (nightMode !== undefined) {
+      if (!['day', 'night', 'auto'].includes(nightMode)) {
+        return res.status(400).json({ message: '无效的夜间模式' });
+      }
+      updatedSettings.nightMode = nightMode;
+    }
+    
+    // 更新数据
+    const updatedData = await updateUserData(userId, {
+      settings: updatedSettings,
+    });
+    
+    res.json({
+      success: true,
+      message: '设置更新成功',
+      settings: updatedData.settings,
+    });
+  } catch (e) {
+    logger.error('data', 'update settings error:', e);
+    res.status(500).json({ message: '更新设置失败' });
   }
 });
 

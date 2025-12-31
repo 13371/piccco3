@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 
 const { sendVerificationCodeEmail } = require('../config/mailer');
 const { generateCode, saveCode, verifyCode, codes, normalizeEmail } = require('../store/verificationStore');
-const { createUser, findUserByEmail, verifyPassword, updatePassword, deleteUser, findUserById } = require('../store/userStore');
+const { createUser, findUserByEmail, verifyPassword, updatePassword, deleteUser, findUserById, updateUser } = require('../store/userStore');
 
 const router = express.Router();
 
@@ -455,6 +455,58 @@ router.get('/me', authenticateToken, async (req, res) => {
   } catch (e) {
     logger.error('auth', 'get me error:', e);
     res.status(500).json({ message: '获取用户信息失败' });
+  }
+});
+
+// 更新用户信息（需要JWT验证）
+// 注意：PATCH方法必须在GET /me之后定义
+router.patch('/me', authenticateToken, async (req, res) => {
+  logger.info('auth', 'PATCH /me 路由被调用', { userId: req.user?.id, body: req.body });
+  try {
+    const userId = req.user.id;
+    const { username, avatar } = req.body;
+    
+    // 验证用户是否存在
+    const user = await findUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+
+    // 检查用户是否被封禁
+    if (user.isBanned) {
+      logger.warn('auth', `被封禁用户尝试更新信息: ${user.email} (ID: ${userId})`);
+      return res.status(403).json({ 
+        message: `您的账号已被封禁，无法更新信息${user.banReason ? '，原因：' + user.banReason : ''}` 
+      });
+    }
+
+    // 构建更新对象
+    const updates = {};
+    if (username !== undefined) {
+      if (!username || !username.trim()) {
+        return res.status(400).json({ message: '用户名不能为空' });
+      }
+      updates.username = username.trim();
+    }
+    if (avatar !== undefined) {
+      updates.avatar = avatar;
+    }
+
+    // 如果没有要更新的字段
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: '没有要更新的字段' });
+    }
+
+    // 更新用户信息
+    const updatedUser = updateUser(userId, updates);
+    logger.info('auth', `用户信息已更新: ${user.email} (ID: ${userId})`, updates);
+    
+    // 返回更新后的用户信息（排除密码）
+    const { password, ...userInfo } = updatedUser;
+    res.json({ user: userInfo, message: '更新成功' });
+  } catch (e) {
+    logger.error('auth', 'update user error:', e);
+    res.status(500).json({ message: e.message || '更新用户信息失败' });
   }
 });
 

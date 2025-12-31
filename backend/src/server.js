@@ -77,12 +77,57 @@ app.use(helmet({
   hsts: false, // 不发送 Strict-Transport-Security 头，避免 http 被浏览器强制升级为 https
 }));
 
-app.use(
-  cors({
-    origin: FRONTEND_ORIGIN,
-    credentials: true,
-  })
-);
+// CORS配置：开发环境支持多个来源（包括移动设备）
+const allowedOrigins = process.env.NODE_ENV === 'development'
+  ? (FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
+  : [FRONTEND_ORIGIN];
+
+// CORS配置对象
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 允许没有origin的请求（如移动应用、Postman等）
+    if (!origin) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('cors', '允许无origin的请求');
+      }
+      return callback(null, true);
+    }
+    
+    // 开发环境：记录所有CORS请求
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('cors', `收到CORS请求，origin: ${origin}`);
+    }
+    
+    // 检查是否在允许列表中
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('cors', `允许的origin: ${origin}`);
+      }
+      callback(null, true);
+    } else {
+      // 开发环境：允许来自同一局域网的所有请求
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('cors', `开发环境：允许origin: ${origin}`);
+        callback(null, true);
+      } else {
+        logger.warn('cors', `拒绝的origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+
+// 显式处理OPTIONS预检请求（必须在所有中间件之前）
+app.options('*', cors(corsOptions));
+
+// 应用CORS中间件
+app.use(cors(corsOptions));
 
 app.use(cookieParser());
 // 限制请求体大小，防止DoS攻击
@@ -101,10 +146,17 @@ if (CONFIG.NODE_ENV === 'production') {
   }));
 } else {
   // 开发环境：显示所有请求
+  // 使用异步写入避免阻塞请求
   app.use(morgan('dev', {
     stream: {
-      write: (message) => logger.debug('http', message.trim())
-    }
+      write: (message) => {
+        // 异步写入，避免阻塞请求
+        setImmediate(() => {
+          logger.debug('http', message.trim());
+        });
+      }
+    },
+    immediate: false, // 不立即写入，避免阻塞
   }));
 }
 
@@ -185,11 +237,19 @@ app.use(notFoundHandler);
 // 全局错误处理（必须在最后）
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  logger.info('server', `piccco backend listening on http://localhost:${PORT}`);
-  logger.info('server', `环境: ${CONFIG.NODE_ENV}`);
+// 开发环境监听所有网络接口（允许移动设备访问），生产环境只监听localhost
+// 如果没有明确设置 NODE_ENV=production，默认使用 development 模式
+const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || CONFIG.NODE_ENV === 'development';
+const HOST = isDevelopment ? '0.0.0.0' : 'localhost';
+
+app.listen(PORT, HOST, () => {
+  logger.info('server', `piccco backend listening on http://${HOST}:${PORT}`);
+  logger.info('server', `环境: ${CONFIG.NODE_ENV} (isDevelopment: ${isDevelopment})`);
   logger.info('server', `前端地址: ${FRONTEND_ORIGIN}`);
   logger.info('server', `日志级别: ${process.env.LOG_LEVEL || (CONFIG.NODE_ENV === 'production' ? 'INFO' : 'DEBUG')}`);
+  if (CONFIG.NODE_ENV === 'development') {
+    logger.info('server', `移动设备访问: http://你的IP地址:${PORT}`);
+  }
 });
 
 
