@@ -1,49 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
-import { useDataStore } from '../stores/dataStore';
+import { useHomeContentStore } from '../stores/homeContentStore';
 import { useTranslation } from '../i18n/useTranslation';
 import './HomePage.css';
 
 const HomePage = () => {
-  const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const addNote = useDataStore((state) => state.addNote);
-  const notes = useDataStore((state) => state.getNotesByFolder());
-  const updateNote = useDataStore((state) => state.updateNote);
+  const homeContent = useHomeContentStore((state) => state.content);
+  const setHomeContent = useHomeContentStore((state) => state.setContent);
+  const [content, setContent] = useState(homeContent);
   const { t } = useTranslation();
 
-  // 自动保存
+  // 从独立存储加载内容
+  useEffect(() => {
+    setContent(homeContent);
+  }, [homeContent]);
+
+  // 自动保存到独立存储（防抖）
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (content.trim()) {
-        const existingNote = notes.find((n) => !n.folderId);
-        if (existingNote) {
-          updateNote(existingNote.id, content);
-        } else {
-          addNote(content);
-        }
-      }
+      setHomeContent(content);
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [content, notes, updateNote, addNote]);
-
-  // 加载已有内容
-  useEffect(() => {
-    const existingNote = notes.find((n) => !n.folderId);
-    if (existingNote) {
-      setContent(existingNote.content);
-    }
-  }, [notes]);
+  }, [content, setHomeContent]);
 
   const handleSave = () => {
-    if (content.trim()) {
-      const existingNote = notes.find((n) => !n.folderId);
-      if (existingNote) {
-        updateNote(existingNote.id, content);
-      } else {
-        addNote(content);
-      }
-    }
+    setHomeContent(content);
   };
 
   return (

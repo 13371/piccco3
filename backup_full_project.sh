@@ -208,3 +208,21 @@ log ""
 log "查看所有备份文件:"
 ls -lh "${BACKUP_BASE_DIR}"/*.zip 2>/dev/null | tail -5
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

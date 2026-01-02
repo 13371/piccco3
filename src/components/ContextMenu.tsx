@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import './ContextMenu.css';
 
 interface ContextMenuProps {
@@ -7,7 +8,7 @@ interface ContextMenuProps {
   y: number;
   items: {
     label: string;
-    icon?: string;
+    icon?: string | ReactNode;
     onClick: () => void;
     danger?: boolean;
   }[];
@@ -55,7 +56,11 @@ const ContextMenu = ({ isOpen, onClose, x, y, items }: ContextMenuProps) => {
               onClose();
             }}
           >
-            {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+            {item.icon && (
+              <span className="context-menu-icon">
+                {typeof item.icon === 'string' ? item.icon : item.icon}
+              </span>
+            )}
             <span>{item.label}</span>
           </button>
         ))}

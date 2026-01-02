@@ -47,9 +47,9 @@ export const useMessageStore = create<MessageState>()(
               signal: controller.signal,
             });
             clearTimeout(timeoutId);
-          } catch (fetchError: any) {
+          } catch (fetchError: unknown) {
             clearTimeout(timeoutId);
-            if (fetchError.name === 'AbortError') {
+            if (fetchError instanceof Error && fetchError.name === 'AbortError') {
               console.error('[messageStore] 请求超时');
               return;
             }
@@ -92,9 +92,17 @@ export const useMessageStore = create<MessageState>()(
             
             set({ messages: mergedMessages });
           } else if (res.status === 401 || res.status === 403) {
-            // Token过期或无效，清除登录状态
-            console.warn('[messageStore] Token无效，清除登录状态');
-            useUserStore.getState().logout();
+            // Token过期，尝试刷新Token
+            const refreshResult = await useUserStore.getState().refreshAccessToken();
+            if (refreshResult.ok) {
+              // 刷新成功，重试加载消息
+              console.log('[messageStore] Token已刷新，重试加载消息');
+              return get().loadMessagesFromServer();
+            } else {
+              // 刷新失败，清除登录状态
+              console.warn('[messageStore] Token无效且刷新失败，清除登录状态');
+              useUserStore.getState().logout();
+            }
           }
         } catch (e) {
           console.error('[messageStore] load messages error', e);
@@ -123,8 +131,17 @@ export const useMessageStore = create<MessageState>()(
           });
           
           if (res.status === 401 || res.status === 403) {
-            console.warn('[messageStore] Token无效，清除登录状态');
-            useUserStore.getState().logout();
+            // Token过期，尝试刷新Token
+            const refreshResult = await useUserStore.getState().refreshAccessToken();
+            if (refreshResult.ok) {
+              // 刷新成功，重试标记已读
+              console.log('[messageStore] Token已刷新，重试标记已读');
+              return get().markAsRead(id);
+            } else {
+              // 刷新失败，清除登录状态
+              console.warn('[messageStore] Token无效且刷新失败，清除登录状态');
+              useUserStore.getState().logout();
+            }
           }
         } catch (e) {
           console.error('[messageStore] mark as read error', e);
@@ -165,8 +182,17 @@ export const useMessageStore = create<MessageState>()(
           );
           
           if (authError) {
-            console.warn('[messageStore] Token无效，清除登录状态');
-            useUserStore.getState().logout();
+            // Token过期，尝试刷新Token
+            const refreshResult = await useUserStore.getState().refreshAccessToken();
+            if (refreshResult.ok) {
+              // 刷新成功，重试标记全部已读
+              console.log('[messageStore] Token已刷新，重试标记全部已读');
+              return get().markAllAsRead();
+            } else {
+              // 刷新失败，清除登录状态
+              console.warn('[messageStore] Token无效且刷新失败，清除登录状态');
+              useUserStore.getState().logout();
+            }
           }
         } catch (e) {
           console.error('[messageStore] mark all as read error', e);
@@ -181,6 +207,12 @@ export const useMessageStore = create<MessageState>()(
     }
   )
 );
+
+
+
+
+
+
 
 
 

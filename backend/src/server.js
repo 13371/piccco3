@@ -77,8 +77,13 @@ app.use(helmet({
   hsts: false, // 不发送 Strict-Transport-Security 头，避免 http 被浏览器强制升级为 https
 }));
 
+// 开发环境判断（统一使用，避免重复定义）
+// 开发环境监听所有网络接口（允许移动设备访问），生产环境只监听localhost
+// 如果没有明确设置 NODE_ENV=production，默认使用 development 模式
+const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || CONFIG.NODE_ENV === 'development';
+
 // CORS配置：开发环境支持多个来源（包括移动设备）
-const allowedOrigins = process.env.NODE_ENV === 'development'
+const allowedOrigins = isDevelopment
   ? (FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
   : [FRONTEND_ORIGIN];
 
@@ -87,26 +92,26 @@ const corsOptions = {
   origin: (origin, callback) => {
     // 允许没有origin的请求（如移动应用、Postman等）
     if (!origin) {
-      if (process.env.NODE_ENV === 'development') {
+      if (isDevelopment) {
         logger.debug('cors', '允许无origin的请求');
       }
       return callback(null, true);
     }
     
     // 开发环境：记录所有CORS请求
-    if (process.env.NODE_ENV === 'development') {
+    if (isDevelopment) {
       logger.debug('cors', `收到CORS请求，origin: ${origin}`);
     }
     
     // 检查是否在允许列表中
     if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-      if (process.env.NODE_ENV === 'development') {
+      if (isDevelopment) {
         logger.debug('cors', `允许的origin: ${origin}`);
       }
       callback(null, true);
     } else {
-      // 开发环境：允许来自同一局域网的所有请求
-      if (process.env.NODE_ENV === 'development') {
+      // 开发环境：允许来自同一局域网的所有请求（包括IP地址）
+      if (isDevelopment) {
         logger.debug('cors', `开发环境：允许origin: ${origin}`);
         callback(null, true);
       } else {
@@ -237,9 +242,7 @@ app.use(notFoundHandler);
 // 全局错误处理（必须在最后）
 app.use(errorHandler);
 
-// 开发环境监听所有网络接口（允许移动设备访问），生产环境只监听localhost
-// 如果没有明确设置 NODE_ENV=production，默认使用 development 模式
-const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || CONFIG.NODE_ENV === 'development';
+// 使用上面定义的 isDevelopment 变量
 const HOST = isDevelopment ? '0.0.0.0' : 'localhost';
 
 app.listen(PORT, HOST, () => {

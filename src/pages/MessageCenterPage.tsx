@@ -13,11 +13,12 @@ const MessageCenterPage = () => {
   const messages = useMessageStore((state) => state.messages);
   const markAsRead = useMessageStore((state) => state.markAsRead);
   const markAllAsRead = useMessageStore((state) => state.markAllAsRead);
-  const loadMessagesFromServer = useMessageStore((state) => state.loadMessagesFromServer);
   
   useEffect(() => {
-    loadMessagesFromServer();
-  }, [loadMessagesFromServer]);
+    // 只在组件挂载时加载一次
+    const loadMessages = useMessageStore.getState().loadMessagesFromServer;
+    loadMessages();
+  }, []);
 
   const handleItemClick = (id: string) => {
     markAsRead(id);

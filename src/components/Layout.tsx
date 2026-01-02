@@ -5,14 +5,13 @@ import { useMessageStore } from '../stores/messageStore';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import TopBar from './TopBar';
-import BottomNav from './BottomNav';
+import TopNav from './TopNav';
 import './Layout.css';
 
 const Layout = () => {
   const navigate = useNavigate();
   const isAuthenticated = useUserStore((state) => state.isAuthenticated());
   const isBanned = useUserStore((state) => state.isBanned());
-  const checkBanStatus = useUserStore((state) => state.checkBanStatus);
   const logout = useUserStore((state) => state.logout);
   const fontSize = useSettingsStore((state) => state.fontSize);
   const nightMode = useSettingsStore((state) => state.nightMode);
@@ -23,7 +22,8 @@ const Layout = () => {
   useEffect(() => {
     if (isAuthenticated) {
       // 立即检查一次
-      checkBanStatus().then((result: boolean | 'unbanned' | false) => {
+      const checkBan = useUserStore.getState().checkBanStatus;
+      checkBan().then((result: boolean | 'unbanned' | false) => {
         if (result === true) {
           // 用户被封禁
           const user = useUserStore.getState().currentUser;
@@ -37,7 +37,8 @@ const Layout = () => {
       
       // 每5秒检查一次封禁状态（更频繁，确保解封后立即恢复）
       const interval = setInterval(async () => {
-        const result = await checkBanStatus();
+        const checkBan = useUserStore.getState().checkBanStatus;
+        const result = await checkBan();
         if (result === true) {
           // 用户被封禁
           const user = useUserStore.getState().currentUser;
@@ -54,7 +55,7 @@ const Layout = () => {
       // 未登录时清除封禁消息
       setBanMessage(null);
     }
-  }, [isAuthenticated, checkBanStatus]);
+  }, [isAuthenticated]);
 
   // 自动同步消息（每30秒）
   useEffect(() => {
@@ -73,32 +74,19 @@ const Layout = () => {
     return () => clearInterval(interval);
   }, [isAuthenticated, isBanned]);
 
-  // 自动同步数据（每60秒，只在有变更时上传）
+  // 登录时初始同步（只下载一次）
   useEffect(() => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
-    const syncDataToServer = useDataStore.getState().syncDataToServer;
     
-    // 延迟同步，避免与登录时的同步冲突
+    // 延迟同步，避免与登录时的同步冲突（一切以服务器为准）
     const initialSyncTimer = setTimeout(() => {
-      syncDataFromServer();
+      syncDataFromServer(0, true); // 强制优先使用服务器数据
     }, 1000);
-    
-    // 每60秒自动同步一次
-    const interval = setInterval(() => {
-      // 先下载服务器数据
-      syncDataFromServer();
-      
-      // 实时获取 pendingChanges，避免闭包问题
-      if (useDataStore.getState().pendingChanges) {
-        syncDataToServer();
-      }
-    }, 60000); // 60秒
     
     return () => {
       clearTimeout(initialSyncTimer);
-      clearInterval(interval);
     };
   }, [isAuthenticated, isBanned]);
 
@@ -179,10 +167,10 @@ const Layout = () => {
         </div>
       )}
       <TopBar />
+      <TopNav />
       <main className="main-content">
         <Outlet />
       </main>
-      <BottomNav />
     </div>
   );
 };

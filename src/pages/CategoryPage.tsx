@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import ContextMenu from '../components/ContextMenu';
 import PasswordModal from '../components/PasswordModal';
 import { useTranslation } from '../i18n/useTranslation';
+import { AddIcon, StarIcon, EditIcon, TrashIcon } from '../components/Icons';
 import './CategoryPage.css';
 
 const CategoryPage = () => {
@@ -23,8 +24,37 @@ const CategoryPage = () => {
   const [newFolderType, setNewFolderType] = useState<'normal' | 'privacy' | 'url'>('normal');
   const [newFolderPassword, setNewFolderPassword] = useState('');
   
-  // 分类页面只显示普通文件夹和隐私文件夹，不显示网址文件夹
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type !== 'url'));
+  // 分类页面只显示普通文件夹和隐私文件夹，不显示网址文件夹，且不显示已删除的文件夹
+  // 使用 Map 去重，确保每个 ID 只显示一次
+  // 关键修复：如果同一个ID有多个版本，优先保留未删除的版本，如果都删除或都未删除，保留 updatedAt 最新的
+  const folders = useDataStore((state) => {
+    const folderMap = new Map<string, typeof state.folders[0]>();
+    state.folders
+      .filter((f) => f.type !== 'url')
+      .forEach((f) => {
+        const existing = folderMap.get(f.id);
+        if (!existing) {
+          // 第一个版本，直接添加（但只添加未删除的）
+          if (!f.isDeleted) {
+            folderMap.set(f.id, f);
+          }
+        } else {
+          // 已存在，需要判断保留哪个
+          if (f.isDeleted && !existing.isDeleted) {
+            // 新的是已删除，旧的是未删除，保留未删除的
+            // 不更新
+          } else if (!f.isDeleted && existing.isDeleted) {
+            // 新的是未删除，旧的是已删除，保留未删除的
+            folderMap.set(f.id, f);
+          } else if ((f.updatedAt || 0) > (existing.updatedAt || 0)) {
+            // 两者删除状态相同，保留 updatedAt 更新的
+            folderMap.set(f.id, f);
+          }
+        }
+      });
+    // 最后过滤掉已删除的（双重保险）
+    return Array.from(folderMap.values()).filter((f) => !f.isDeleted);
+  });
   const addFolder = useDataStore((state) => state.addFolder);
   const updateFolder = useDataStore((state) => state.updateFolder);
   const deleteFolder = useDataStore((state) => state.deleteFolder);
@@ -33,6 +63,8 @@ const CategoryPage = () => {
   const reorderFolder = useDataStore((state) => state.reorderFolder);
   const verifyFolderPassword = useDataStore((state) => state.verifyFolderPassword);
   const navigate = useNavigate();
+  
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
 
@@ -54,26 +86,9 @@ const CategoryPage = () => {
     };
   }, []);
 
-  // 初始化默认文件夹（如果不存在）
-  useEffect(() => {
-    const currentFolders = folders;
-    const hasPrivacy = currentFolders.some((f) => f.id === 'folder_privacy_default');
-    const hasCategory1 = currentFolders.some((f) => f.id === 'folder_category1_default');
-    const hasCategory2 = currentFolders.some((f) => f.id === 'folder_category2_default');
-
-    if (!hasPrivacy || !hasCategory1 || !hasCategory2) {
-      if (!hasPrivacy) {
-        // 隐私文件夹首次打开时由用户自行设置密码
-        addFolder(t('privacyFolder'), 'privacy', 'purple', undefined);
-      }
-      if (!hasCategory1) {
-        addFolder(t('category1Default'), 'normal', 'blue');
-      }
-      if (!hasCategory2) {
-        addFolder(t('category2Default'), 'normal', 'green');
-      }
-    }
-  }, []);
+  // 移除自动创建默认文件夹的逻辑
+  // 默认文件夹应该由 dataStore 的 onRehydrateStorage 统一管理
+  // 这里不再自动创建，避免重复创建和ID冲突
 
   const handleAddFolder = () => {
     if (newFolderName.trim()) {
@@ -88,11 +103,12 @@ const CategoryPage = () => {
         updateFolder(editingFolder, updates);
         setEditingFolder(null);
       } else {
+        // 新建模式：只能创建普通文件夹
         addFolder(
           newFolderName,
-          newFolderType,
+          'normal',
           'blue',
-          newFolderType === 'privacy' ? newFolderPassword : undefined
+          undefined
         );
       }
       setNewFolderName('');
@@ -171,7 +187,7 @@ const CategoryPage = () => {
     <div className="category-page">
       <h1 className="page-title">{t('category')}</h1>
       <button className="add-folder-button" onClick={() => setShowAddModal(true)}>
-        ➕ {t('newFolder')}
+        <AddIcon /> <span>{t('newFolder')}</span>
       </button>
       <div className="folders-list">
         {sortedFolders.length === 0 ? (
@@ -230,12 +246,12 @@ const CategoryPage = () => {
           items={[
             {
               label: folder.isStarred ? t('unstar') : t('star'),
-              icon: '⭐',
+              icon: <StarIcon filled={folder.isStarred} />,
               onClick: () => toggleFolderStar(folder.id),
             },
             {
               label: t('rename'),
-              icon: '✏️',
+              icon: <EditIcon />,
               onClick: () => {
                 setEditingFolder(folder.id);
                 setNewFolderName(folder.name);
@@ -249,8 +265,13 @@ const CategoryPage = () => {
               ? [
                   {
                     label: t('delete'),
-                    icon: '🗑️',
-                    onClick: () => deleteFolder(folder.id),
+                    icon: <TrashIcon />,
+                    onClick: async () => {
+                      const result = await deleteFolder(folder.id);
+                      if (!result.ok) {
+                        setDeleteError(result.message || '删除失败');
+                      }
+                    },
                     danger: true,
                   },
                 ]
@@ -291,7 +312,8 @@ const CategoryPage = () => {
             onChange={(e) => setNewFolderName(e.target.value)}
             className="form-input"
           />
-          {!editingFolder && (
+          {/* 新建时只能创建普通文件夹，编辑时显示类型选择 */}
+          {editingFolder && (
             <select
               value={newFolderType}
               onChange={(e) => setNewFolderType(e.target.value as 'normal' | 'privacy' | 'url')}
@@ -336,6 +358,30 @@ const CategoryPage = () => {
               title={color}
             />
           ))}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!deleteError}
+        onClose={() => setDeleteError(null)}
+        title="无法删除"
+      >
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <p>{deleteError}</p>
+          <button
+            onClick={() => setDeleteError(null)}
+            style={{
+              marginTop: '20px',
+              padding: '10px 20px',
+              backgroundColor: '#007AFF',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            {t('confirm')}
+          </button>
         </div>
       </Modal>
     </div>

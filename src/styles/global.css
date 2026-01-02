@@ -159,6 +159,94 @@ button:disabled {
   background: var(--text-tertiary);
 }
 
+/* 移动端优化 */
+/* 防止iOS Safari自动缩放输入框 */
+input,
+textarea,
+select {
+  font-size: 16px !important; /* iOS Safari 在字体小于16px时会自动缩放 */
+}
+
+/* 优化触摸反馈 */
+button,
+a,
+.nav-item,
+.list-item {
+  -webkit-tap-highlight-color: rgba(0, 122, 255, 0.1);
+  touch-action: manipulation; /* 禁用双击缩放 */
+}
+
+/* 移动端媒体查询 */
+@media (max-width: 768px) {
+  /* 调整字体大小 */
+  body {
+    font-size: 14px;
+  }
+  
+  .page-title {
+    font-size: 20px;
+  }
+  
+  /* 优化按钮和触摸目标大小 */
+  button {
+    min-height: 44px; /* iOS推荐的最小触摸目标 */
+    min-width: 44px;
+  }
+  
+  /* 优化输入框 */
+  input,
+  textarea {
+    padding: 14px 16px; /* 增加内边距，便于触摸 */
+  }
+  
+  /* 优化列表项 */
+  .list-item {
+    padding: 16px;
+    min-height: 60px; /* 确保足够的触摸区域 */
+  }
+  
+  /* 优化顶部栏 */
+  .top-bar {
+    padding: 12px 16px;
+  }
+  
+  /* 优化登录页面 */
+  .login-page {
+    padding: 16px;
+  }
+  
+  .login-title {
+    font-size: 36px;
+    margin-bottom: 32px;
+  }
+  
+  /* 优化模态框 */
+  .modal-content {
+    margin: 16px;
+    max-width: calc(100% - 32px);
+  }
+}
+
+/* 小屏幕优化 */
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .page-title {
+    font-size: 18px;
+  }
+  
+  .login-title {
+    font-size: 32px;
+  }
+  
+  /* 进一步优化间距 */
+  .page-header {
+    margin-bottom: 12px;
+  }
+}
+
 
 
 

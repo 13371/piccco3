@@ -4,6 +4,14 @@ import { useUserStore } from '../stores/userStore';
 import { useMessageStore } from '../stores/messageStore';
 import { useTranslation } from '../i18n/useTranslation';
 import ListItem from '../components/ListItem';
+import {
+  SettingsIcon,
+  AccountSecurityIcon,
+  TrashIcon,
+  HelpFeedbackIcon,
+  AboutIcon,
+  MessageIcon,
+} from '../components/Icons';
 import './MePage.css';
 
 const MePage = () => {
@@ -38,10 +46,10 @@ const MePage = () => {
       }
       // 读取文件并转换为 base64
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const base64 = event.target?.result as string;
         if (base64) {
-          updateAvatar(base64);
+          await updateAvatar(base64);
         }
       };
       reader.readAsDataURL(file);
@@ -52,43 +60,43 @@ const MePage = () => {
 
   const menuItems = [
     {
-      icon: '🔔',
+      icon: <MessageIcon />,
       title: t('messageCenter'),
       onClick: () => {
         navigate('/messages');
       },
-      showBadge: unreadCount > 0,
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
     {
-      icon: '⚙️',
+      icon: <SettingsIcon />,
       title: t('settings'),
       onClick: () => {
         navigate('/settings');
       },
     },
     {
-      icon: '🛡️',
+      icon: <AccountSecurityIcon />,
       title: t('accountSecurity'),
       onClick: () => {
         navigate('/account-security');
       },
     },
     {
-      icon: '🗑️',
+      icon: <TrashIcon />,
       title: t('trash'),
       onClick: () => {
         navigate('/trash');
       },
     },
     {
-      icon: '❓',
+      icon: <HelpFeedbackIcon />,
       title: t('helpAndFeedback'),
       onClick: () => {
         navigate('/help-feedback');
       },
     },
     {
-      icon: 'ℹ️',
+      icon: <AboutIcon />,
       title: t('about'),
       onClick: () => {
         navigate('/about');
@@ -166,21 +174,13 @@ const MePage = () => {
       </div>
       <div className="menu-list">
         {menuItems.map((item, index) => {
-          const anyItem: any = item;
-          const rightIcon =
-            item.title === t('messageCenter') && anyItem.showBadge && unreadCount > 0 ? (
-              <div className="me-message-right">
-                <span className="me-message-badge">{unreadCount}</span>
-                <span className="list-item-arrow">›</span>
-              </div>
-            ) : undefined;
           return (
             <ListItem
               key={index}
               icon={item.icon}
               title={item.title}
               onClick={item.onClick}
-              rightIcon={rightIcon}
+              badge={item.badge}
             />
           );
         })}
@@ -215,14 +215,20 @@ const MePage = () => {
               </button>
               <button
                 className="me-username-confirm"
-                onClick={() => {
+                onClick={async () => {
                   const name = newUsername.trim();
                   if (!name) {
                     alert(t('usernameRequired'));
                     return;
                   }
-                  updateUsername(name);
-                  setIsEditingUsername(false);
+                  try {
+                    await updateUsername(name);
+                    // 只有成功时才关闭编辑模态框
+                    setIsEditingUsername(false);
+                  } catch (error) {
+                    // 错误已经在updateUsername中处理了，这里不需要额外处理
+                    console.error('更新用户名失败:', error);
+                  }
                 }}
               >
                 {t('save')}

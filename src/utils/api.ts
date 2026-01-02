@@ -1,6 +1,5 @@
 // 统一的API请求工具函数
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+import { API_BASE_URL } from '../config/api';
 
 // 请求超时时间（毫秒）
 const REQUEST_TIMEOUT = 30000; // 30秒

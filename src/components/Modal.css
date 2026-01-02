@@ -10,11 +10,13 @@
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  padding-top: calc(20px + env(safe-area-inset-top)); /* iOS安全区域适配 */
+  padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* iOS安全区域适配 */
 }
 
 .modal-content {
   background-color: var(--bg-color);
-  border-radius: 12px;
+  border-radius: 20px;
   max-width: 500px;
   width: 100%;
   max-height: 80vh;
@@ -42,12 +44,13 @@
   font-size: 24px;
   cursor: pointer;
   color: var(--text-tertiary);
-  padding: 0;
-  width: 32px;
-  height: 32px;
+  padding: 8px; /* 增加内边距，便于移动端触摸 */
+  min-width: 44px; /* 确保足够的触摸目标大小 */
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .modal-close:hover {
@@ -56,6 +59,41 @@
 
 .modal-body {
   padding: 20px;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    align-items: flex-end; /* 移动端从底部弹出 */
+  }
+  
+  .modal-content {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 20px 20px 0 0; /* 顶部圆角 */
+    max-height: 90vh;
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  
+  .modal-header {
+    padding: 16px;
+  }
+  
+  .modal-body {
+    padding: 16px;
+  }
 }
 
 

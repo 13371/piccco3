@@ -70,6 +70,16 @@
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.add-url-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 .add-url-button:hover {
@@ -97,6 +107,14 @@
   text-align: left;
   padding: 4px 0;
   text-decoration: underline;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.create-folder-link svg {
+  width: 16px;
+  height: 16px;
 }
 
 .create-folder-link:hover {

@@ -34,10 +34,13 @@
 }
 
 .login-input {
-  padding: 12px 16px;
+  padding: 14px 16px; /* 增加内边距，便于移动端触摸 */
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 16px; /* 确保至少16px，防止iOS自动缩放 */
+  min-height: 44px; /* 确保足够的触摸目标大小 */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .login-input:focus {
@@ -51,7 +54,7 @@
 }
 
 .login-button {
-  padding: 12px;
+  padding: 14px 16px; /* 增加内边距，便于移动端触摸 */
   background-color: var(--primary-color);
   color: white;
   border-radius: 8px;
@@ -59,6 +62,9 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s;
+  min-height: 44px; /* 确保足够的触摸目标大小 */
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .login-button:hover {
@@ -67,13 +73,16 @@
 
 .code-button {
   white-space: nowrap;
-  padding: 10px 12px;
+  padding: 12px 16px; /* 增加内边距，便于移动端触摸 */
   border-radius: 8px;
   border: 1px solid var(--primary-color);
   background-color: var(--primary-color);
   color: #fff;
   font-size: 14px;
   cursor: pointer;
+  min-height: 44px; /* 确保足够的触摸目标大小 */
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0; /* 防止在小屏幕上被压缩 */
 }
 
 .code-button:disabled {
@@ -140,6 +149,54 @@
 
 .login-agreement-link:hover {
   text-decoration: underline;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .login-page {
+    padding: 16px;
+    min-height: 100vh;
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); /* iOS安全区域适配 */
+  }
+  
+  .login-title {
+    font-size: 36px;
+    margin-bottom: 32px;
+  }
+  
+  .login-form {
+    gap: 14px;
+  }
+  
+  .login-code-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .login-code-row .login-input {
+    width: 100%;
+  }
+  
+  .code-button {
+    width: 100%;
+  }
+  
+  .login-switch,
+  .login-forgot-password {
+    min-height: 44px; /* 确保足够的触摸目标大小 */
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-title {
+    font-size: 32px;
+    margin-bottom: 24px;
+  }
+  
+  .login-page {
+    padding: 12px;
+  }
 }
 
 

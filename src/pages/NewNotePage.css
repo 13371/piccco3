@@ -1,114 +1,228 @@
 .new-note-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* 动态视口高度，移动端更准确 */
   background-color: var(--bg-color);
+  z-index: 1000;
+  overflow: hidden;
 }
 
 .note-editor-wrapper {
   flex: 1;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  flex-direction: column;
+  width: 100%;
   overflow-y: auto;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .note-editor {
   width: 100%;
-  max-width: 500px;
+  flex: 1;
   background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 16px;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-height: 100%;
+  max-width: 100%;
 }
 
 .page-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0 12px 0;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 16px 12px;
+  margin-bottom: 16px;
+  background-color: var(--hover-bg);
+  border-radius: 12px;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .header-back {
-  background: none;
+  background: var(--primary-color);
   border: none;
-  color: var(--text-color);
+  border-radius: 10px;
+  color: white;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 10px 16px;
+  min-width: 60px;
+  min-height: 44px;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.header-back:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
 }
 
 .header-folder-select {
   flex: 1;
-  margin: 0 12px;
-  padding: 4px 8px;
+  padding: 10px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  font-size: 14px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
   background-color: var(--bg-color);
   color: var(--text-color);
+  min-height: 44px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.header-folder-select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
 .header-save {
-  background: none;
+  background: var(--primary-color);
   border: none;
-  color: var(--text-tertiary);
+  border-radius: 10px;
+  color: white;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 10px 20px;
+  min-width: 60px;
+  min-height: 44px;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.header-save:not(:disabled) {
-  color: var(--primary-color);
+.header-save:not(:disabled):hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
 }
 
 .header-save:disabled {
+  background: var(--hover-bg);
+  color: var(--text-tertiary);
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 
+.note-title-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+
 .note-title-input {
-  font-size: 16px;
-  font-weight: 500;
-  padding: 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 12px 16px;
+  padding-right: 60px; /* 为字数提示留出空间 */
   width: 100%;
-  background: transparent;
-  border: none;
+  background: var(--hover-bg);
+  border: 1px solid transparent;
+  border-radius: 12px;
   outline: none;
   color: var(--text-color);
+  transition: all 0.2s;
+}
+
+.note-title-input:focus {
+  border-color: var(--primary-color);
+  background: var(--bg-color);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
 .note-title-input::placeholder {
   color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.title-char-count {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  font-weight: 400;
 }
 
 .note-divider {
-  height: 1px;
-  background-color: var(--primary-color);
-  margin: 8px 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+  margin: 8px 0 16px 0;
+  border-radius: 1px;
+  opacity: 0.3;
 }
 
 .note-content-input {
   flex: 1;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 8px 0;
+  font-size: 16px;
+  line-height: 1.8;
+  padding: 16px;
   width: 100%;
   resize: none;
-  background: transparent;
-  min-height: 150px;
-  border: none;
+  background: var(--hover-bg);
+  border: 1px solid transparent;
+  border-radius: 12px;
   outline: none;
   color: var(--text-color);
+  overflow-y: auto;
+  transition: all 0.2s;
+  min-height: 200px;
+}
+
+.note-content-input:focus {
+  border-color: var(--primary-color);
+  background: var(--bg-color);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
 .note-content-input::placeholder {
   color: var(--text-tertiary);
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .note-editor {
+    padding: 16px 12px;
+  }
+  
+  .page-header-row {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .header-back,
+  .header-save {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  
+  .note-title-input {
+    font-size: 18px;
+    padding: 10px 14px;
+    padding-right: 55px; /* 移动端为字数提示留出空间 */
+  }
+  
+  .title-char-count {
+    right: 14px;
+    font-size: 11px;
+  }
+  
+  .note-content-input {
+    padding: 14px;
+    min-height: 150px;
+  }
 }
 

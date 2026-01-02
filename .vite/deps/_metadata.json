@@ -1,0 +1,64 @@
+{
+  "hash": "1fd55e87",
+  "configHash": "0d28002b",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "01704abe",
+  "optimized": {
+    "date-fns": {
+      "src": "../../node_modules/date-fns/esm/index.js",
+      "file": "date-fns.js",
+      "fileHash": "4429a712",
+      "needsInterop": false
+    },
+    "date-fns/locale": {
+      "src": "../../node_modules/date-fns/esm/locale/index.js",
+      "file": "date-fns_locale.js",
+      "fileHash": "2a683ffc",
+      "needsInterop": false
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "669ff679",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "d866ce87",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.js",
+      "file": "react-router-dom.js",
+      "fileHash": "7d636441",
+      "needsInterop": false
+    },
+    "zustand": {
+      "src": "../../node_modules/zustand/esm/index.mjs",
+      "file": "zustand.js",
+      "fileHash": "ecd0ee93",
+      "needsInterop": false
+    },
+    "zustand/middleware": {
+      "src": "../../node_modules/zustand/esm/middleware.mjs",
+      "file": "zustand_middleware.js",
+      "fileHash": "b0bbbc10",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-P7E5TDZP": {
+      "file": "chunk-P7E5TDZP.js"
+    },
+    "chunk-HCGKX5ED": {
+      "file": "chunk-HCGKX5ED.js"
+    },
+    "chunk-WNPTCGAH": {
+      "file": "chunk-WNPTCGAH.js"
+    },
+    "chunk-5WRI5ZAA": {
+      "file": "chunk-5WRI5ZAA.js"
+    }
+  }
+}

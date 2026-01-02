@@ -327,3 +327,21 @@ tail -50 /root/piccco3-backups/full-backup.log
 
 **备份完成！** ZIP 备份可以作为 Git 备份的补充，提供快速恢复能力。
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

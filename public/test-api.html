@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API连接测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    .test-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+    .test-section h2 {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #666;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-size: 14px;
+      word-break: break-all;
+    }
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .status.loading {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    button {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      margin-top: 10px;
+      padding: 10px;
+      background: #1f2937;
+      color: #f9fafb;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 API连接测试工具</h1>
+    
+    <div class="test-section">
+      <h2>1. 当前页面信息</h2>
+      <div id="pageInfo" class="status info">加载中...</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>2. API地址检测</h2>
+      <div id="apiInfo" class="status info">检测中...</div>
+    </div>
+    
+    <div class="test-section">
+      <h2>3. 测试OPTIONS预检请求</h2>
+      <button onclick="testOptions()">测试OPTIONS</button>
+      <div id="optionsResult" class="status" style="display:none;"></div>
+    </div>
+    
+    <div class="test-section">
+      <h2>4. 测试GET请求（/api/auth/me）</h2>
+      <button onclick="testGet()">测试GET</button>
+      <div id="getResult" class="status" style="display:none;"></div>
+    </div>
+    
+    <div class="test-section">
+      <h2>5. 测试登录请求</h2>
+      <input type="email" id="testEmail" placeholder="输入邮箱" />
+      <input type="password" id="testPassword" placeholder="输入密码" style="margin-top: 10px;" />
+      <button onclick="testLogin()">测试登录</button>
+      <div id="loginResult" class="status" style="display:none;"></div>
+    </div>
+    
+    <div class="test-section">
+      <h2>6. 详细日志</h2>
+      <button onclick="clearLog()">清除日志</button>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+
+  <script>
+    // 日志函数
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+      logDiv.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+    
+    function clearLog() {
+      document.getElementById('log').textContent = '';
+    }
+    
+    // 获取API地址（与前端代码逻辑一致）
+    function getApiBaseUrl() {
+      const hostname = window.location.hostname;
+      const protocol = window.location.protocol;
+      
+      log(`检测hostname: ${hostname}, protocol: ${protocol}`);
+      
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        const apiUrl = `${protocol}//${hostname}:4000/api`;
+        log(`使用IP地址: ${apiUrl}`);
+        return apiUrl;
+      }
+      
+      const defaultUrl = 'http://localhost:4000/api';
+      log(`使用默认地址: ${defaultUrl}`);
+      return defaultUrl;
+    }
+    
+    const API_BASE_URL = getApiBaseUrl();
+    
+    // 初始化显示
+    function init() {
+      // 显示页面信息
+      const pageInfo = document.getElementById('pageInfo');
+      pageInfo.innerHTML = `
+        <strong>当前URL:</strong> ${window.location.href}<br>
+        <strong>Hostname:</strong> ${window.location.hostname}<br>
+        <strong>Protocol:</strong> ${window.location.protocol}<br>
+        <strong>Port:</strong> ${window.location.port || '默认'}
+      `;
+      
+      // 显示API信息
+      const apiInfo = document.getElementById('apiInfo');
+      apiInfo.innerHTML = `
+        <strong>API地址:</strong> ${API_BASE_URL}<br>
+        <strong>状态:</strong> <span id="apiStatus">待测试</span>
+      `;
+      
+      log('页面初始化完成');
+    }
+    
+    // 测试OPTIONS请求
+    async function testOptions() {
+      const resultDiv = document.getElementById('optionsResult');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'status loading';
+      resultDiv.textContent = '测试中...';
+      
+      log('开始测试OPTIONS预检请求...');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': window.location.origin,
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'Content-Type, Authorization'
+          }
+        });
+        
+        const headers = {};
+        response.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        
+        log(`OPTIONS响应状态: ${response.status} ${response.statusText}`);
+        log(`OPTIONS响应头: ${JSON.stringify(headers, null, 2)}`);
+        
+        if (response.status === 200 || response.status === 204) {
+          resultDiv.className = 'status success';
+          resultDiv.innerHTML = `
+            <strong>✅ OPTIONS请求成功</strong><br>
+            状态码: ${response.status}<br>
+            Access-Control-Allow-Origin: ${headers['access-control-allow-origin'] || '未设置'}<br>
+            Access-Control-Allow-Methods: ${headers['access-control-allow-methods'] || '未设置'}<br>
+            Access-Control-Allow-Headers: ${headers['access-control-allow-headers'] || '未设置'}
+          `;
+        } else {
+          throw new Error(`状态码: ${response.status}`);
+        }
+      } catch (error) {
+        log(`OPTIONS请求失败: ${error.message}`, 'error');
+        resultDiv.className = 'status error';
+        resultDiv.innerHTML = `
+          <strong>❌ OPTIONS请求失败</strong><br>
+          错误: ${error.message}<br>
+          可能原因:<br>
+          • 后端服务未运行<br>
+          • 防火墙阻止了连接<br>
+          • CORS配置问题
+        `;
+      }
+    }
+    
+    // 测试GET请求
+    async function testGet() {
+      const resultDiv = document.getElementById('getResult');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'status loading';
+      resultDiv.textContent = '测试中...';
+      
+      log('开始测试GET请求...');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          data = text;
+        }
+        
+        log(`GET响应状态: ${response.status} ${response.statusText}`);
+        log(`GET响应内容: ${JSON.stringify(data, null, 2)}`);
+        
+        resultDiv.className = response.ok ? 'status success' : 'status error';
+        resultDiv.innerHTML = `
+          <strong>${response.ok ? '✅' : '❌'} GET请求${response.ok ? '成功' : '失败'}</strong><br>
+          状态码: ${response.status}<br>
+          响应: ${JSON.stringify(data, null, 2).substring(0, 200)}
+        `;
+      } catch (error) {
+        log(`GET请求失败: ${error.message}`, 'error');
+        resultDiv.className = 'status error';
+        resultDiv.innerHTML = `
+          <strong>❌ GET请求失败</strong><br>
+          错误: ${error.message}<br>
+          可能原因:<br>
+          • 网络连接失败<br>
+          • 后端服务未运行<br>
+          • CORS配置问题
+        `;
+      }
+    }
+    
+    // 测试登录请求
+    async function testLogin() {
+      const email = document.getElementById('testEmail').value.trim();
+      const password = document.getElementById('testPassword').value.trim();
+      
+      if (!email || !password) {
+        alert('请输入邮箱和密码');
+        return;
+      }
+      
+      const resultDiv = document.getElementById('loginResult');
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'status loading';
+      resultDiv.textContent = '测试中...';
+      
+      log(`开始测试登录请求: ${email.substring(0, 3)}***`);
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ email, password })
+        });
+        
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          data = { message: text };
+        }
+        
+        log(`登录响应状态: ${response.status} ${response.statusText}`);
+        log(`登录响应内容: ${JSON.stringify(data, null, 2)}`);
+        
+        if (response.ok && data.token) {
+          resultDiv.className = 'status success';
+          resultDiv.innerHTML = `
+            <strong>✅ 登录成功</strong><br>
+            状态码: ${response.status}<br>
+            用户: ${data.user?.email || '未知'}<br>
+            Token: ${data.token.substring(0, 20)}...
+          `;
+        } else {
+          resultDiv.className = 'status error';
+          resultDiv.innerHTML = `
+            <strong>❌ 登录失败</strong><br>
+            状态码: ${response.status}<br>
+            错误: ${data.message || '未知错误'}
+          `;
+        }
+      } catch (error) {
+        log(`登录请求失败: ${error.message}`, 'error');
+        resultDiv.className = 'status error';
+        resultDiv.innerHTML = `
+          <strong>❌ 登录请求失败</strong><br>
+          错误: ${error.message}<br>
+          可能原因:<br>
+          • 网络连接失败<br>
+          • 后端服务未运行<br>
+          • CORS配置问题
+        `;
+      }
+    }
+    
+    // 页面加载时初始化
+    init();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

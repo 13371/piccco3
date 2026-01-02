@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { API_BASE_URL } from '../config/api';
+import { getApiBaseUrlDynamic } from '../config/api';
 import { useDataStore } from './dataStore';
 import { useMessageStore } from './messageStore';
+import { useSettingsStore } from './settingsStore';
+
+// 辅助函数：动态获取API地址
+const getApiUrl = (endpoint: string) => {
+  const baseUrl = getApiBaseUrlDynamic();
+  return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+};
 
 interface User {
   id: string;
@@ -37,8 +44,8 @@ interface UserState {
   isAuthenticated: () => boolean;
   isBanned: () => boolean;
   checkBanStatus: () => Promise<boolean | 'unbanned' | false>;
-  updateAvatar: (avatar: string) => void;
-  updateUsername: (username: string) => void;
+  updateAvatar: (avatar: string) => Promise<void>;
+  updateUsername: (username: string) => Promise<void>;
   deleteAccount: () => Promise<{ ok: boolean; message?: string }>;
 }
 
@@ -51,23 +58,42 @@ export const useUserStore = create<UserState>()(
 
       login: async (email: string, password: string) => {
         try {
+          const loginUrl = getApiUrl('/auth/login');
+          console.log('[userStore] 登录请求:', { url: loginUrl, email, hostname: window.location.hostname });
+          
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
           
           let res: Response;
           try {
-            res = await fetch(`${API_BASE_URL}/auth/login`, {
+            res = await fetch(loginUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, password }),
               signal: controller.signal,
             });
             clearTimeout(timeoutId);
-          } catch (fetchError: any) {
+          } catch (fetchError: unknown) {
             clearTimeout(timeoutId);
-            if (fetchError.name === 'AbortError') {
+            console.error('[userStore] 登录请求失败:', {
+              error: fetchError,
+              url: loginUrl,
+              hostname: window.location.hostname,
+              origin: window.location.origin
+            });
+            
+            if (fetchError instanceof Error && fetchError.name === 'AbortError') {
               return { ok: false, message: '请求超时，请检查网络连接' };
             }
+            
+            // 网络错误，提供更详细的错误信息
+            if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
+              return { 
+                ok: false, 
+                message: `网络连接失败。请检查：\n1. 后端服务是否运行在 ${getApiBaseUrlDynamic()}\n2. 手机和电脑是否在同一WiFi\n3. 防火墙是否允许访问` 
+              };
+            }
+            
             throw fetchError;
           }
 
@@ -170,9 +196,49 @@ export const useUserStore = create<UserState>()(
             }
           }
 
-          // 登录后自动从服务器同步数据（延迟1秒，避免与Layout的同步冲突）
-          setTimeout(() => {
-            useDataStore.getState().syncDataFromServer();
+          // 登录后同步数据：优先使用服务器数据，确保多设备数据一致性
+          setTimeout(async () => {
+            const dataStore = useDataStore.getState();
+            
+            // 1. 先下载服务器数据（优先使用服务器最新数据）
+            // 这样可以确保B设备登录时使用的是服务器上的最新数据，而不是本地旧数据
+            console.log('[userStore] 登录后从服务器下载最新数据（优先使用服务器数据）');
+            await dataStore.syncDataFromServer(0, true); // 第二个参数 true 表示优先使用服务器数据
+            
+            // 2. 合并后，检查是否有本地新数据需要上传
+            // 检查逻辑：本地有但服务器没有的数据（新创建的，还未同步）
+            const currentState = useDataStore.getState();
+            const serverSyncTime = currentState.lastSyncTime || 0;
+            
+            // 检查本地是否有新创建的数据（createdAt 或 updatedAt 在最后一次同步之后）
+            // 或者本地有但服务器没有的数据
+            const hasLocalNewData = 
+              (currentState.folders || []).some((f: any) => {
+                if (f.isDeleted) return false;
+                // 检查是否是本地新创建的（没有同步时间戳，或者更新时间在同步时间之后）
+                const itemTime = f.updatedAt || f.createdAt || 0;
+                return itemTime > serverSyncTime || !serverSyncTime;
+              }) ||
+              (currentState.notes || []).some((n: any) => {
+                if (n.isDeleted) return false;
+                const itemTime = n.updatedAt || n.createdAt || 0;
+                return itemTime > serverSyncTime || !serverSyncTime;
+              }) ||
+              (currentState.urls || []).some((u: any) => {
+                if (u.isDeleted) return false;
+                const itemTime = u.updatedAt || u.createdAt || 0;
+                return itemTime > serverSyncTime || !serverSyncTime;
+              });
+            
+            if (hasLocalNewData || currentState.pendingChanges) {
+              console.log('[userStore] 检测到本地新数据，上传到服务器');
+              await dataStore.syncDataToServer();
+              // 上传后再次同步，确保数据一致（再次以服务器为准）
+              await dataStore.syncDataFromServer(0, true);
+            }
+            
+            // 同时加载设置
+            useSettingsStore.getState().loadSettingsFromServer();
           }, 1000);
 
           return { ok: true };
@@ -194,7 +260,7 @@ export const useUserStore = create<UserState>()(
         code: string;
       }) => {
         try {
-          const res = await fetch(`${API_BASE_URL}/auth/register`, {
+          const res = await fetch(getApiUrl('/auth/register'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, username, password, code }),
@@ -298,7 +364,7 @@ export const useUserStore = create<UserState>()(
 
       sendRegisterCode: async (email: string) => {
         try {
-          const res = await fetch(`${API_BASE_URL}/auth/send-code`, {
+          const res = await fetch(getApiUrl('/auth/send-code'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email }),
@@ -319,7 +385,7 @@ export const useUserStore = create<UserState>()(
 
       changePassword: async (email: string, newPassword: string, code: string) => {
         try {
-          const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
+          const res = await fetch(getApiUrl('/auth/change-password'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, newPassword, code }),
@@ -345,13 +411,19 @@ export const useUserStore = create<UserState>()(
         }
         
         try {
-          const res = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+          const res = await fetch(getApiUrl('/auth/refresh-token'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken }),
           });
           
-          const data = await res.json();
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            console.error('[userStore] JSON解析失败:', e);
+            return { ok: false, message: '服务器响应格式错误' };
+          }
           
           if (!res.ok) {
             return { ok: false, message: data.message || '刷新Token失败' };
@@ -402,7 +474,7 @@ export const useUserStore = create<UserState>()(
         }
         
         try {
-          const res = await fetch(`${API_BASE_URL}/auth/me`, {
+          const res = await fetch(getApiUrl('/auth/me'), {
             headers: {
               'Authorization': `Bearer ${state.token}`,
             },
@@ -422,13 +494,19 @@ export const useUserStore = create<UserState>()(
               return true;
             }
             
-            // 更新用户信息（包括解封的情况）
+            // 更新用户信息（包括解封、头像、用户名等所有字段）
             if (data.user) {
               const updatedUser = {
                 ...state.currentUser,
+                // 更新所有可能变化的字段
+                // 一切以服务器为准：优先使用服务器数据
+                username: data.user.username ?? state.currentUser?.username,
+                avatar: data.user.avatar ?? state.currentUser?.avatar,
+                email: data.user.email ?? state.currentUser?.email,
                 isBanned: data.user.isBanned || false,
                 bannedAt: data.user.bannedAt || null,
                 banReason: data.user.banReason || null,
+                createdAt: data.user.createdAt || state.currentUser?.createdAt,
               };
               set({
                 currentUser: updatedUser,
@@ -446,21 +524,109 @@ export const useUserStore = create<UserState>()(
         return false;
       },
 
-      updateAvatar: (avatar: string) => {
+      updateAvatar: async (avatar: string) => {
         const state = get();
-        if (state.currentUser) {
+        if (!state.currentUser || !state.token) {
+          return;
+        }
+
+        try {
+          const res = await fetch(getApiUrl('/auth/me'), {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${state.token}`,
+            },
+            body: JSON.stringify({ avatar }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.user) {
+              set({
+                currentUser: { ...state.currentUser, avatar: data.user.avatar } as User,
+              });
+            } else {
+              // 如果后端没有返回用户信息，只更新本地状态
+              set({
+                currentUser: { ...state.currentUser, avatar } as User,
+              });
+            }
+          } else {
+            const error = await res.json().catch(() => ({ message: '更新头像失败' }));
+            console.error('[userStore] updateAvatar error:', error);
+            // 即使失败也更新本地状态，保证UI响应
+            set({
+              currentUser: { ...state.currentUser, avatar } as User,
+            });
+          }
+        } catch (e) {
+          console.error('[userStore] updateAvatar error:', e);
+          // 即使失败也更新本地状态，保证UI响应
           set({
             currentUser: { ...state.currentUser, avatar } as User,
           });
         }
       },
 
-      updateUsername: (username: string) => {
+      updateUsername: async (username: string) => {
         const state = get();
-        if (state.currentUser) {
-          set({
-            currentUser: { ...state.currentUser, username },
+        if (!state.currentUser || !state.token) {
+          console.error('[userStore] updateUsername: 用户未登录或token不存在');
+          return;
+        }
+
+        try {
+          const url = getApiUrl('/auth/me');
+          console.log('[userStore] 更新用户名，请求URL:', url);
+          console.log('[userStore] 请求数据:', { username });
+          
+          const res = await fetch(url, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${state.token}`,
+            },
+            body: JSON.stringify({ username }),
           });
+
+          console.log('[userStore] 更新用户名响应状态:', res.status);
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log('[userStore] 更新用户名成功，返回数据:', data);
+            if (data.user) {
+              set({
+                currentUser: { ...state.currentUser, username: data.user.username } as User,
+              });
+            } else {
+              // 如果后端没有返回用户信息，只更新本地状态
+              console.warn('[userStore] 后端未返回用户信息，仅更新本地状态');
+              set({
+                currentUser: { ...state.currentUser, username } as User,
+              });
+            }
+          } else {
+            const errorText = await res.text();
+            let error;
+            try {
+              error = JSON.parse(errorText);
+            } catch {
+              error = { message: errorText || '更新用户名失败' };
+            }
+            console.error('[userStore] updateUsername error:', {
+              status: res.status,
+              statusText: res.statusText,
+              error,
+            });
+            alert(error.message || `更新用户名失败 (${res.status})`);
+            // 失败时不更新本地状态，保持原值
+          }
+        } catch (e) {
+          console.error('[userStore] updateUsername network error:', e);
+          const errorMessage = e instanceof Error ? e.message : '未知错误';
+          alert(`网络错误，无法更新用户名: ${errorMessage}`);
+          // 失败时不更新本地状态，保持原值
         }
       },
 
@@ -471,9 +637,10 @@ export const useUserStore = create<UserState>()(
             return { ok: false, message: '未登录' };
           }
 
-          console.log('[userStore] 开始注销账户，API:', `${API_BASE_URL}/auth/account`);
+          const deleteUrl = getApiUrl('/auth/account');
+          console.log('[userStore] 开始注销账户，API:', deleteUrl);
 
-          const res = await fetch(`${API_BASE_URL}/auth/account`, {
+          const res = await fetch(deleteUrl, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${state.token}`,

@@ -1,35 +1,50 @@
-// 简单的前端日志工具，支持按环境控制日志输出
-const mode = import.meta.env.MODE || 'development';
-const isProd = mode === 'production';
+/**
+ * 统一的日志工具
+ * 根据环境变量控制日志级别
+ * 生产环境只记录错误和警告
+ */
 
-function formatArgs(level: string, args: unknown[]) {
-  return [`[${level}]`, ...args];
-}
+const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
 export const logger = {
-  log: (...args: unknown[]) => {
-    if (!isProd) {
-      console.log(...formatArgs('log', args));
+  /**
+   * 开发环境日志
+   */
+  log: (...args: any[]) => {
+    if (isDev) {
+      console.log(...args);
     }
   },
-  info: (...args: unknown[]) => {
-    if (!isProd) {
-      console.info(...formatArgs('info', args));
+  
+  /**
+   * 警告日志（始终记录）
+   */
+  warn: (...args: any[]) => {
+    console.warn(...args);
+  },
+  
+  /**
+   * 错误日志（始终记录）
+   */
+  error: (...args: any[]) => {
+    console.error(...args);
+  },
+  
+  /**
+   * 调试日志（仅开发环境）
+   */
+  debug: (...args: any[]) => {
+    if (isDev) {
+      console.debug(...args);
     }
   },
-  warn: (...args: unknown[]) => {
-    console.warn(...formatArgs('warn', args));
-  },
-  error: (...args: unknown[]) => {
-    console.error(...formatArgs('error', args));
+  
+  /**
+   * 信息日志（仅开发环境）
+   */
+  info: (...args: any[]) => {
+    if (isDev) {
+      console.info(...args);
+    }
   },
 };
-
-export default logger;
-
-
-
-
-
-
-

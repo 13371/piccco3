@@ -5,7 +5,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { format } from 'date-fns';
 import ListItem from '../components/ListItem';
 import ContextMenu from '../components/ContextMenu';
-import Modal from '../components/Modal';
+import { EditIcon, TrashIcon, StarIcon, AddIcon } from '../components/Icons';
 import './AllPage.css';
 
 const FolderNotesPage = () => {
@@ -18,19 +18,11 @@ const FolderNotesPage = () => {
   const notes = useDataStore((state) =>
     state.getNotesByFolder(folderId)
   );
-  const addNote = useDataStore((state) => state.addNote);
-  const updateNote = useDataStore((state) => state.updateNote);
   const deleteNote = useDataStore((state) => state.deleteNote);
   const toggleNoteStar = useDataStore((state) => state.toggleNoteStar);
   const sortMode = useSettingsStore((state) => state.sortMode);
 
-  const [showEditor, setShowEditor] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingNote, setEditingNote] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -69,22 +61,9 @@ const FolderNotesPage = () => {
   };
 
   const handleEdit = (noteId: string) => {
-    const note = notes.find((n) => n.id === noteId);
-    if (note) {
-      setEditingNote(noteId);
-      setEditContent(note.content);
-      setShowEditModal(true);
-      setContextMenu(null);
-    }
-  };
-
-  const handleSaveEdit = () => {
-    if (editingNote && editContent.trim()) {
-      updateNote(editingNote, editContent);
-      setShowEditModal(false);
-      setEditingNote(null);
-      setEditContent('');
-    }
+    // 跳转到编辑页面
+    navigate(`/new-note?noteId=${noteId}`);
+    setContextMenu(null);
   };
 
   const note = contextMenu ? notes.find((n) => n.id === contextMenu.id) : null;
@@ -107,16 +86,10 @@ const FolderNotesPage = () => {
       <button
         className="add-note-button"
         onClick={() => {
-          setShowEditor(true);
-          setTimeout(() => {
-            const textarea = document.getElementById(
-              'note-content-textarea'
-            ) as HTMLTextAreaElement | null;
-            textarea?.focus();
-          }, 0);
+          navigate(`/new-note?folderId=${folderId}`);
         }}
       >
-        ➕ 新建记事
+        <AddIcon /> <span>新建记事</span>
       </button>
 
       <div className="notes-list">
@@ -148,88 +121,23 @@ const FolderNotesPage = () => {
           items={[
             {
               label: '编辑',
-              icon: '✏️',
+              icon: <EditIcon />,
               onClick: () => handleEdit(note.id),
             },
             {
               label: '删除',
-              icon: '🗑️',
+              icon: <TrashIcon />,
               onClick: () => deleteNote(note.id),
               danger: true,
             },
             {
               label: note.isStarred ? '取消星标' : '添加星标',
-              icon: '⭐',
+              icon: <StarIcon filled={note.isStarred} />,
               onClick: () => toggleNoteStar(note.id),
             },
           ]}
         />
       )}
-
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingNote(null);
-          setEditContent('');
-        }}
-        title="编辑记事"
-      >
-        <div className="edit-note-form">
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="edit-note-input"
-            rows={10}
-          />
-          <button onClick={handleSaveEdit} className="form-button">
-            保存
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={showEditor}
-        onClose={() => {
-          setShowEditor(false);
-          setTitle('');
-          setContent('');
-        }}
-      >
-        <div className="edit-note-form">
-          <input
-            type="text"
-            placeholder="无标题"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="form-input"
-          />
-          <textarea
-            id="note-content-textarea"
-            placeholder="输入内容..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="edit-note-input"
-            rows={10}
-          />
-          <button
-            onClick={() => {
-              if (!content.trim() && !title.trim()) return;
-              const fullContent = title.trim()
-                ? `${title.trim()}\n\n${content.trim()}`
-                : content.trim();
-              addNote(fullContent, folderId);
-              setTitle('');
-              setContent('');
-              setShowEditor(false);
-            }}
-            className="form-button"
-            disabled={!content.trim() && !title.trim()}
-          >
-            保存
-          </button>
-        </div>
-      </Modal>
     </div>
   );
 };

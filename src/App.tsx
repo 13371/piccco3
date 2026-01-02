@@ -18,6 +18,7 @@ import DeviceManagementPage from './pages/DeviceManagementPage';
 import HelpFeedbackPage from './pages/HelpFeedbackPage';
 import AboutPage from './pages/AboutPage';
 import UserAgreementPage from './pages/UserAgreementPage';
+import LogViewerPage from './pages/LogViewerPage';
 import './styles/global.css';
 import './styles/colors.css';
 
@@ -44,6 +45,7 @@ function App() {
           <Route path="devices" element={<DeviceManagementPage />} />
           <Route path="help-feedback" element={<HelpFeedbackPage />} />
           <Route path="about" element={<AboutPage />} />
+          <Route path="logs" element={<LogViewerPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -17,6 +17,9 @@ export interface Folder {
   createdAt: number;
   updatedAt: number;
   password?: string; // 隐私文件夹密码
+  // 软删除字段
+  isDeleted: boolean;
+  deletedAt: number | null;
 }
 
 // 记事项
@@ -27,6 +30,9 @@ export interface Note {
   isStarred: boolean;
   createdAt: number;
   updatedAt: number;
+  // 软删除字段
+  isDeleted: boolean;
+  deletedAt: number | null;
 }
 
 // 网址项
@@ -38,6 +44,9 @@ export interface Url {
   isStarred: boolean;
   createdAt: number;
   updatedAt: number;
+  // 软删除字段
+  isDeleted: boolean;
+  deletedAt: number | null;
 }
 
 // 回收站项

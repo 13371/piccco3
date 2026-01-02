@@ -11,22 +11,21 @@ import './AllPage.css';
 
 const SearchPage = () => {
   const navigate = useNavigate();
-  const notes = useDataStore((state) => state.getAllNotes(true)); // 排除隐私文件夹
-  const urls = useDataStore((state) => state.urls);
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'privacy'));
+  const notes = useDataStore((state) => state.getAllNotes(true)); // 排除隐私文件夹，已过滤已删除的笔记
+  const urls = useDataStore((state) => state.urls.filter((u) => !u.isDeleted)); // 过滤已删除的网址
+  const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'privacy' && !f.isDeleted));
   const privacyFolderIds = folders.map((f) => f.id);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ id: string; type: 'note' | 'url'; x: number; y: number } | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ id: string; type: 'note' | 'url' } | null>(null);
-  const [editContent, setEditContent] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editUrl, setEditUrl] = useState('');
 
   const deleteNote = useDataStore((state) => state.deleteNote);
   const toggleNoteStar = useDataStore((state) => state.toggleNoteStar);
-  const updateNote = useDataStore((state) => state.updateNote);
   const deleteUrl = useDataStore((state) => state.deleteUrl);
   const toggleUrlStar = useDataStore((state) => state.toggleUrlStar);
   const updateUrl = useDataStore((state) => state.updateUrl);
@@ -95,14 +94,11 @@ const SearchPage = () => {
 
   const handleEdit = (id: string, type: 'note' | 'url') => {
     if (type === 'note') {
-      const note = filteredNotes.find((n) => n.id === id);
-      if (note) {
-        setEditingItem({ id, type });
-        setEditContent(note.content);
-        setShowEditModal(true);
-        setContextMenu(null);
-      }
+      // 记事编辑：跳转到全屏编辑页面
+      navigate(`/new-note?noteId=${id}`);
+      setContextMenu(null);
     } else {
+      // 网址编辑：使用Modal（保持原有方式）
       const urlItem = urls.find((u) => u.id === id);
       if (urlItem) {
         setEditingItem({ id, type });
@@ -117,14 +113,8 @@ const SearchPage = () => {
   const handleSaveEdit = () => {
     if (!editingItem) return;
     
-    if (editingItem.type === 'note') {
-      if (editContent.trim()) {
-        updateNote(editingItem.id, editContent);
-        setShowEditModal(false);
-        setEditingItem(null);
-        setEditContent('');
-      }
-    } else {
+    // 只处理网址编辑（记事编辑已改为跳转页面）
+    if (editingItem.type === 'url') {
       if (editUrl.trim()) {
         const optimized = optimizeUrl(editUrl);
         const finalTitle = editTitle.trim() || extractTitleFromUrl(optimized);
@@ -150,7 +140,10 @@ const SearchPage = () => {
   return (
     <div className="search-page">
       <div className="search-header">
-        <button className="search-back-btn" onClick={() => navigate(-1)}>
+        <button 
+          className={`search-back-btn ${isSearchFocused ? 'focused' : ''}`} 
+          onClick={() => navigate(-1)}
+        >
           取消
         </button>
         <input
@@ -159,6 +152,8 @@ const SearchPage = () => {
           placeholder="搜索记事和URL..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
           autoFocus
         />
       </div>
@@ -264,30 +259,17 @@ const SearchPage = () => {
         />
       )}
 
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingItem(null);
-          setEditContent('');
-          setEditTitle('');
-          setEditUrl('');
-        }}
-        title={editingItem?.type === 'note' ? '编辑记事' : '编辑网址'}
-      >
-        {editingItem?.type === 'note' ? (
-          <div className="edit-note-form">
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="edit-note-input"
-              rows={10}
-            />
-            <button onClick={handleSaveEdit} className="form-button" disabled={!editContent.trim()}>
-              保存
-            </button>
-          </div>
-        ) : (
+      {editingItem?.type === 'url' && (
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingItem(null);
+            setEditTitle('');
+            setEditUrl('');
+          }}
+          title="编辑网址"
+        >
           <div className="add-url-form">
             <input
               type="text"
@@ -307,8 +289,8 @@ const SearchPage = () => {
               保存
             </button>
           </div>
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };

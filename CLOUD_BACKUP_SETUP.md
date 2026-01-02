@@ -238,3 +238,21 @@ ossutil cp /root/test.txt oss://your-bucket-name/test.txt
 需要我帮你配置吗？
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

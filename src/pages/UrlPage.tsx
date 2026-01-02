@@ -9,6 +9,7 @@ import ListItem from '../components/ListItem';
 import Modal from '../components/Modal';
 import ContextMenu from '../components/ContextMenu';
 import FolderIcon from '../components/FolderIcon';
+import { AddIcon, StarIcon, EditIcon, TrashIcon } from '../components/Icons';
 import './UrlPage.css';
 
 const UrlPage = () => {
@@ -24,7 +25,7 @@ const UrlPage = () => {
   const navigate = useNavigate();
   
   const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'url'));
+  const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'url' && !f.isDeleted));
   const addUrl = useDataStore((state) => state.addUrl);
   const updateUrl = useDataStore((state) => state.updateUrl);
   const addFolder = useDataStore((state) => state.addFolder);
@@ -130,7 +131,12 @@ const UrlPage = () => {
         // 保留第一个，其余删除
         sameName
           .slice(1)
-          .forEach((folder) => deleteFolder(folder.id));
+          .forEach(async (folder) => {
+            const result = await deleteFolder(folder.id);
+            if (!result.ok) {
+              console.warn('[UrlPage] 删除重复文件夹失败:', result.message);
+            }
+          });
       }
     });
   }, [folders, deleteFolder]);
@@ -179,7 +185,7 @@ const UrlPage = () => {
       <h1 className="page-title">网址</h1>
       {/* 添加文件夹的大按钮 */}
       <button className="add-url-button" onClick={() => setShowFolderModal(true)}>
-        ➕ 新建文件夹
+        <AddIcon /> <span>新建文件夹</span>
       </button>
       <div className="folders-list">
         {sortedFolders.length === 0 ? (
@@ -232,12 +238,12 @@ const UrlPage = () => {
           items={[
             {
               label: folder.isStarred ? '取消星标' : '添加星标',
-              icon: '⭐',
+              icon: <StarIcon filled={folder.isStarred} />,
               onClick: () => toggleFolderStar(folder.id),
             },
             {
               label: '重命名',
-              icon: '✏️',
+              icon: <EditIcon />,
               onClick: () => {
                 const newName = window.prompt('重命名文件夹', folder.name);
                 if (newName && newName.trim()) {
@@ -247,8 +253,13 @@ const UrlPage = () => {
             },
             {
               label: '删除',
-              icon: '🗑️',
-              onClick: () => deleteFolder(folder.id),
+              icon: <TrashIcon />,
+              onClick: async () => {
+                const result = await deleteFolder(folder.id);
+                if (!result.ok) {
+                  alert(result.message || '删除失败');
+                }
+              },
               danger: true,
             },
           ]}
@@ -324,7 +335,7 @@ const UrlPage = () => {
                 setShowFolderModal(true);
               }}
             >
-              ➕ 新建文件夹
+              <AddIcon /> 新建文件夹
             </button>
           </div>
           <button onClick={handleAddUrl} className="form-button">

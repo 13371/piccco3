@@ -1,37 +1,180 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import './NewNotePage.css';
 
 const NewNotePage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const addNote = useDataStore((state) => state.addNote);
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type !== 'url' && f.type !== 'privacy'));
+  const updateNote = useDataStore((state) => state.updateNote);
+  const folders = useDataStore((state) => state.folders.filter((f) => f.type !== 'url' && f.type !== 'privacy' && !f.isDeleted));
+  const getAllNotes = useDataStore((state) => state.getAllNotes);
+  
+  // 从URL参数获取folderId和noteId
+  const folderIdFromUrl = searchParams.get('folderId') || undefined;
+  const noteIdFromUrl = searchParams.get('noteId') || undefined;
+  const isEditMode = !!noteIdFromUrl;
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(undefined);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(folderIdFromUrl);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  
+  // 保存原始内容，用于比较是否有变化
+  const [originalTitle, setOriginalTitle] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [originalFolderId, setOriginalFolderId] = useState<string | undefined>(undefined);
+  
+  // 如果是编辑模式，加载记事内容
+  useEffect(() => {
+    if (noteIdFromUrl) {
+      const allNotes = getAllNotes(true);
+      const note = allNotes.find((n) => n.id === noteIdFromUrl);
+      if (note) {
+        // 解析标题和内容
+        const lines = note.content.split('\n');
+        let noteTitle = '';
+        let noteContent = '';
+        if (lines.length > 2 && lines[1].trim() === '') {
+          // 有标题的情况：第一行是标题，第三行开始是内容
+          noteTitle = lines[0];
+          noteContent = lines.slice(2).join('\n');
+        } else {
+          // 没有标题的情况：全部是内容
+          noteTitle = '';
+          noteContent = note.content;
+        }
+        setTitle(noteTitle);
+        setContent(noteContent);
+        setSelectedFolderId(note.folderId);
+        // 保存原始值
+        setOriginalTitle(noteTitle);
+        setOriginalContent(noteContent);
+        setOriginalFolderId(note.folderId);
+      }
+    } else {
+      // 新建模式，重置原始值
+      setOriginalTitle('');
+      setOriginalContent('');
+      setOriginalFolderId(folderIdFromUrl);
+    }
+  }, [noteIdFromUrl, getAllNotes, folderIdFromUrl]);
+  
+  // 当URL参数变化时，更新selectedFolderId
+  useEffect(() => {
+    if (folderIdFromUrl && !isEditMode) {
+      setSelectedFolderId(folderIdFromUrl);
+    }
+  }, [folderIdFromUrl, isEditMode]);
 
-  // 光标默认在内容框
+  // 移动端：确保光标可见的辅助函数
+  const handleCursorScroll = useCallback(() => {
+    setTimeout(() => {
+      if (contentRef.current && wrapperRef.current) {
+        const textarea = contentRef.current;
+        const selectionStart = textarea.selectionStart;
+        
+        // 计算光标所在的行
+        const textBeforeCursor = textarea.value.substring(0, selectionStart);
+        const linesBefore = textBeforeCursor.split('\n');
+        const currentLine = linesBefore.length;
+        const totalLines = textarea.value.split('\n').length;
+        
+        // 如果光标在底部附近（最后3行），需要滚动
+        if (currentLine >= totalLines - 3) {
+          // 获取textarea的样式信息
+          const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 24;
+          const paddingTop = parseFloat(window.getComputedStyle(textarea).paddingTop) || 16;
+          
+          // 计算光标在textarea中的位置
+          const cursorLineInTextarea = currentLine - 1;
+          const cursorYInTextarea = cursorLineInTextarea * lineHeight + paddingTop;
+          
+          // 获取textarea的可见区域
+          const textareaScrollTop = textarea.scrollTop;
+          const textareaClientHeight = textarea.clientHeight;
+          const textareaVisibleTop = textareaScrollTop;
+          const textareaVisibleBottom = textareaScrollTop + textareaClientHeight;
+          
+          // 如果光标不在可见区域内，滚动textarea
+          if (cursorYInTextarea < textareaVisibleTop || cursorYInTextarea > textareaVisibleBottom - lineHeight * 2) {
+            textarea.scrollTop = Math.max(0, cursorYInTextarea - textareaClientHeight / 2);
+          }
+          
+          // 确保textarea本身在视口中可见（考虑键盘遮挡）
+          const textareaRect = textarea.getBoundingClientRect();
+          const viewportHeight = window.visualViewport?.height || window.innerHeight;
+          const safeArea = 100; // 保留的安全区域（避免被键盘完全遮挡）
+          
+          // 如果textarea底部超出可用视口，滚动wrapper
+          if (textareaRect.bottom > viewportHeight - safeArea) {
+            // 计算需要滚动的距离
+            const scrollOffset = textareaRect.bottom - viewportHeight + safeArea;
+            const currentScrollTop = wrapperRef.current.scrollTop;
+            wrapperRef.current.scrollTop = currentScrollTop + scrollOffset;
+          }
+        }
+      }
+    }, 100); // 稍微延迟，确保DOM已更新
+  }, []);
+
+  // 光标默认在内容框第一行
   useEffect(() => {
     setTimeout(() => {
       contentRef.current?.focus();
+      // 将光标移到第一行（位置0）
+      if (contentRef.current) {
+        contentRef.current.setSelectionRange(0, 0);
+        // 滚动到顶部
+        contentRef.current.scrollTop = 0;
+      }
+      // 移动端：初始聚焦后也确保光标可见
+      handleCursorScroll();
     }, 0);
-  }, []);
+  }, [isEditMode, handleCursorScroll]);
+
+  // 检查内容是否有变化
+  const hasChanges = useMemo(() => {
+    const currentFullContent = title.trim()
+      ? `${title.trim()}\n\n${content.trim()}`
+      : content.trim();
+    const originalFullContent = originalTitle.trim()
+      ? `${originalTitle.trim()}\n\n${originalContent.trim()}`
+      : originalContent.trim();
+    
+    // 比较内容和文件夹ID
+    return currentFullContent !== originalFullContent || selectedFolderId !== originalFolderId;
+  }, [title, content, originalTitle, originalContent, selectedFolderId, originalFolderId]);
 
   const handleSave = () => {
     if (!content.trim() && !title.trim()) return;
+    if (!hasChanges) return; // 如果没有变化，不执行保存
+    
     const fullContent = title.trim()
       ? `${title.trim()}\n\n${content.trim()}`
       : content.trim();
-    addNote(fullContent, selectedFolderId);
+    
+    if (isEditMode && noteIdFromUrl) {
+      // 编辑模式：更新记事（包括内容和文件夹）
+      updateNote(noteIdFromUrl, fullContent, selectedFolderId);
+      // 更新原始值
+      setOriginalTitle(title);
+      setOriginalContent(content);
+      setOriginalFolderId(selectedFolderId);
+    } else {
+      // 新建模式：添加记事
+      addNote(fullContent, selectedFolderId);
+    }
+    
+    // 立即返回上一页面，同步操作由 addNote/updateNote 中的 debouncedUploadSync 自动处理
     navigate(-1);
   };
 
   return (
     <div className="new-note-page">
-      <div className="note-editor-wrapper">
+      <div className="note-editor-wrapper" ref={wrapperRef}>
         <div className="note-editor">
           <div className="page-header-row">
             <button className="header-back" onClick={() => navigate(-1)}>
@@ -52,19 +195,29 @@ const NewNotePage = () => {
             <button
               className="header-save"
               onClick={handleSave}
-              disabled={!content.trim() && !title.trim()}
+              disabled={(!content.trim() && !title.trim()) || !hasChanges}
             >
               保存
             </button>
           </div>
 
-          <input
-            type="text"
-            className="note-title-input"
-            placeholder="无标题"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <div className="note-title-wrapper">
+            <input
+              type="text"
+              className="note-title-input"
+              placeholder="无标题"
+              value={title}
+              maxLength={10}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                // 确保不超过10个字符
+                if (newValue.length <= 10) {
+                  setTitle(newValue);
+                }
+              }}
+            />
+            <span className="title-char-count">{title.length}/10</span>
+          </div>
           <div className="note-divider"></div>
           <textarea
             ref={contentRef}
@@ -72,6 +225,18 @@ const NewNotePage = () => {
             placeholder="输入内容..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            onKeyUp={() => {
+              // 移动端：确保光标可见（处理换行等情况）
+              handleCursorScroll();
+            }}
+            onClick={() => {
+              // 移动端：点击时确保光标可见
+              handleCursorScroll();
+            }}
+            onInput={() => {
+              // 移动端：输入时确保光标可见
+              handleCursorScroll();
+            }}
           />
         </div>
       </div>

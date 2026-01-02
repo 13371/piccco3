@@ -78,7 +78,7 @@
 
 .account-label {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .account-value {
@@ -110,6 +110,8 @@
 .menu-list > * {
   border-radius: 12px;
   overflow: hidden;
+  background-color: var(--hover-bg);
+  border: 1px solid var(--border-color);
 }
 
 .me-message-right {
@@ -151,7 +153,7 @@
 .me-username-modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;

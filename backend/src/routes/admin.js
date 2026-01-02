@@ -5,6 +5,7 @@ const { getAllUsers, filterUsers, findUserById, banUser, unbanUser, deleteUser }
 const { sendMessageToUser, sendMessageToAllUsers } = require('../store/messageStore');
 const { addMessageHistory, addBroadcastHistory, getMessageHistory, deleteHistory } = require('../store/messageHistoryStore');
 const { requireAdminAuth, checkAdminPassword } = require('../middleware/adminAuth');
+const { getLogs, clearLogs, getLogStats } = require('../store/logStore');
 
 const router = express.Router();
 
@@ -287,6 +288,48 @@ router.delete('/message-history/:historyId', (req, res) => {
   } catch (e) {
     logger.error('admin', 'delete message history error:', e);
     res.status(500).json({ message: '删除历史记录失败' });
+  }
+});
+
+/**
+ * 获取日志列表（需要管理员权限）
+ * GET /api/v1/admin/logs
+ * 查询参数：
+ *   - limit: 返回的日志条数（默认100）
+ *   - level: 过滤日志级别（info, warn, error, debug）
+ */
+router.get('/logs', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '100', 10);
+    const level = req.query.level || null;
+    
+    const logs = getLogs(limit, level);
+    const stats = getLogStats();
+    
+    res.json({
+      success: true,
+      data: {
+        logs,
+        stats,
+      },
+    });
+  } catch (e) {
+    logger.error('admin', 'get logs error:', e);
+    res.status(500).json({ message: '获取日志失败' });
+  }
+});
+
+/**
+ * 清空日志（需要管理员权限）
+ * DELETE /api/v1/admin/logs
+ */
+router.delete('/logs', (req, res) => {
+  try {
+    clearLogs();
+    res.json({ message: '日志已清空', success: true });
+  } catch (e) {
+    logger.error('admin', 'clear logs error:', e);
+    res.status(500).json({ message: '清空日志失败' });
   }
 });
 

@@ -1,31 +1,21 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { format } from 'date-fns';
-import { optimizeUrl, extractTitleFromUrl } from '../utils/urlOptimizer';
 import ListItem from '../components/ListItem';
 import ContextMenu from '../components/ContextMenu';
-import Modal from '../components/Modal';
 import { eventEmitter } from '../utils/events';
+import { AddIcon, StarIcon, EditIcon, TrashIcon } from '../components/Icons';
 import './AllPage.css';
 
 const AllPage = () => {
+  const navigate = useNavigate();
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingNote, setEditingNote] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [isUrl, setIsUrl] = useState(false);
-  const [urlFolderId, setUrlFolderId] = useState<string | undefined>(undefined);
 
   const notes = useDataStore((state) => state.getAllNotes(true));
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'url'));
   const deleteNote = useDataStore((state) => state.deleteNote);
   const toggleNoteStar = useDataStore((state) => state.toggleNoteStar);
-  const updateNote = useDataStore((state) => state.updateNote);
-  const addNote = useDataStore((state) => state.addNote);
-  const addUrl = useDataStore((state) => state.addUrl);
   const sortMode = useSettingsStore((state) => state.sortMode);
 
   useEffect(() => {
@@ -38,13 +28,13 @@ const AllPage = () => {
 
   useEffect(() => {
     const handleAddItem = () => {
-      setShowAddModal(true);
+      navigate('/new-note');
     };
     eventEmitter.on('add-item', handleAddItem);
     return () => {
       eventEmitter.off('add-item', handleAddItem);
     };
-  }, []);
+  }, [navigate]);
 
   // 排序：星标置顶，然后根据设置（更新时间 / 名称）
   const sortedNotes = useMemo(() => {
@@ -76,49 +66,9 @@ const AllPage = () => {
   };
 
   const handleEdit = (noteId: string) => {
-    const note = notes.find((n) => n.id === noteId);
-    if (note) {
-      setEditingNote(noteId);
-      setEditContent(note.content);
-      setShowEditModal(true);
-      setContextMenu(null);
-    }
-  };
-
-  const handleSaveEdit = () => {
-    if (editingNote && editContent.trim()) {
-      updateNote(editingNote, editContent);
-      setShowEditModal(false);
-      setEditingNote(null);
-      setEditContent('');
-    }
-  };
-
-  const handleAddItem = () => {
-    if (newContent.trim()) {
-      if (isUrl) {
-        // 作为网址保存
-        const optimizedUrl = optimizeUrl(newContent);
-        const title = extractTitleFromUrl(optimizedUrl);
-        addUrl(title, optimizedUrl, urlFolderId);
-      } else {
-        // 作为记事保存
-        addNote(newContent);
-      }
-      setNewContent('');
-      setIsUrl(false);
-      setUrlFolderId(undefined);
-      setShowAddModal(false);
-    }
-  };
-
-  const handleContentChange = (value: string) => {
-    setNewContent(value);
-    // 检测是否是URL格式
-    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
-    if (urlPattern.test(value.trim())) {
-      setIsUrl(true);
-    }
+    // 跳转到编辑页面
+    navigate(`/new-note?noteId=${noteId}`);
+    setContextMenu(null);
   };
 
   const note = contextMenu ? notes.find((n) => n.id === contextMenu.id) : null;
@@ -126,8 +76,8 @@ const AllPage = () => {
   return (
     <div className="all-page">
       <h1 className="page-title">全部</h1>
-      <button className="add-note-button" onClick={() => setShowAddModal(true)}>
-        ➕ 新建记事
+      <button className="add-note-button" onClick={() => navigate('/new-note')}>
+        <AddIcon /> <span>新建记事</span>
       </button>
       <div className="notes-list">
         {sortedNotes.length === 0 ? (
@@ -159,96 +109,23 @@ const AllPage = () => {
           items={[
             {
               label: '编辑',
-              icon: '✏️',
+              icon: <EditIcon />,
               onClick: () => handleEdit(note.id),
             },
             {
               label: '删除',
-              icon: '🗑️',
+              icon: <TrashIcon />,
               onClick: () => deleteNote(note.id),
               danger: true,
             },
             {
               label: note.isStarred ? '取消星标' : '添加星标',
-              icon: '⭐',
+              icon: <StarIcon filled={note.isStarred} />,
               onClick: () => toggleNoteStar(note.id),
             },
           ]}
         />
       )}
-
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingNote(null);
-          setEditContent('');
-        }}
-        title="编辑记事"
-      >
-        <div className="edit-note-form">
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="edit-note-input"
-            rows={10}
-          />
-          <button onClick={handleSaveEdit} className="form-button">
-            保存
-          </button>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={showAddModal}
-        onClose={() => {
-          setShowAddModal(false);
-          setNewContent('');
-          setIsUrl(false);
-          setUrlFolderId(undefined);
-        }}
-        title="新建记事"
-      >
-        <div className="edit-note-form">
-          <textarea
-            placeholder={isUrl ? "输入URL（例如：example.com）" : "输入内容..."}
-            value={newContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            className="edit-note-input"
-            rows={6}
-          />
-          <div className="form-checkbox-group">
-            <label className="form-checkbox">
-              <input
-                type="checkbox"
-                checked={isUrl}
-                onChange={(e) => setIsUrl(e.target.checked)}
-              />
-              <span>这是网址</span>
-            </label>
-          </div>
-          {isUrl && (
-            <div className="form-group">
-              <label className="form-label">选择网址文件夹（可选）</label>
-              <select
-                value={urlFolderId || ''}
-                onChange={(e) => setUrlFolderId(e.target.value || undefined)}
-                className="form-input"
-              >
-                <option value="">不分类</option>
-                {folders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <button onClick={handleAddItem} className="form-button">
-            添加
-          </button>
-        </div>
-      </Modal>
     </div>
   );
 };

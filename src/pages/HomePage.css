@@ -27,6 +27,25 @@
   color: var(--text-tertiary);
 }
 
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .home-page {
+    padding: 16px;
+  }
+  
+  .home-input-container {
+    padding: 12px;
+    height: auto;
+    min-height: 200px;
+    max-height: calc(100vh - 200px); /* 确保在小屏幕上不会太高 */
+  }
+  
+  .home-input {
+    font-size: 16px; /* 确保至少16px，防止iOS自动缩放 */
+    min-height: 200px;
+  }
+}
+
 
 
 

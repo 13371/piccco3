@@ -50,10 +50,66 @@ async function readUserData(userId) {
 }
 
 /**
+ * 清理重复记录：只保留 updatedAt 最大的一条
+ * 强制要求：确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
+ */
+function deduplicateById(items, type = 'items') {
+  if (!Array.isArray(items) || items.length === 0) {
+    return items;
+  }
+  
+  const itemMap = new Map();
+  const duplicateIds = new Set();
+  
+  items.forEach((item) => {
+    if (!item.id) {
+      logger.warn('userDataStore', `发现没有 id 的${type}项，跳过`);
+      return;
+    }
+    
+    const existing = itemMap.get(item.id);
+    if (existing) {
+      duplicateIds.add(item.id);
+      // 保留 updatedAt 最大的
+      const existingTime = existing.updatedAt || 0;
+      const currentTime = item.updatedAt || 0;
+      if (currentTime > existingTime) {
+        itemMap.set(item.id, item);
+      }
+    } else {
+      itemMap.set(item.id, item);
+    }
+  });
+  
+  if (duplicateIds.size > 0) {
+    logger.warn('userDataStore', `清理重复的${type}记录: ${duplicateIds.size} 个重复 id, 已保留 updatedAt 最大的`, {
+      duplicateIds: Array.from(duplicateIds),
+      before: items.length,
+      after: itemMap.size,
+    });
+  }
+  
+  return Array.from(itemMap.values());
+}
+
+/**
  * 写入用户数据（异步）
+ * 强制要求：写入前自动清理重复记录，确保 id 唯一性
  */
 async function writeUserData(userId, data) {
   const filePath = getUserDataFile(userId);
+  
+  // 强制要求：写入前自动清理重复记录，确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
+  if (data.folders) {
+    data.folders = deduplicateById(data.folders, 'folders');
+  }
+  if (data.notes) {
+    data.notes = deduplicateById(data.notes, 'notes');
+  }
+  if (data.urls) {
+    data.urls = deduplicateById(data.urls, 'urls');
+  }
+  
   // 添加同步时间戳
   data.lastSyncAt = Date.now();
   const success = await writeJsonFile(filePath, data, true);

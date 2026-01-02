@@ -9,9 +9,10 @@ interface ListItemProps {
   rightIcon?: ReactNode;
   isStarred?: boolean;
   onMenuClick?: (e: React.MouseEvent) => void;
+  badge?: number;
 }
 
-const ListItem = ({ icon, title, subtitle, onClick, rightIcon, isStarred, onMenuClick }: ListItemProps) => {
+const ListItem = ({ icon, title, subtitle, onClick, rightIcon, isStarred, onMenuClick, badge }: ListItemProps) => {
   return (
     <div className="list-item" onClick={onClick}>
       {icon && <div className="list-item-icon">{icon}</div>}
@@ -23,6 +24,9 @@ const ListItem = ({ icon, title, subtitle, onClick, rightIcon, isStarred, onMenu
         {subtitle && <div className="list-item-subtitle">{subtitle}</div>}
       </div>
       <div className="list-item-right">
+        {badge !== undefined && badge > 0 && (
+          <span className="list-item-badge">{badge > 99 ? '99+' : badge}</span>
+        )}
         {onMenuClick && (
           <button
             className="list-item-menu-btn"
