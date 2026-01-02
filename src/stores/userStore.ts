@@ -139,6 +139,8 @@ export const useUserStore = create<UserState>()(
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 password: undefined,
+                isDeleted: false,
+                deletedAt: null,
               },
               {
                 id: 'folder_category1_default',
@@ -149,6 +151,8 @@ export const useUserStore = create<UserState>()(
                 order: 1,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
+                isDeleted: false,
+                deletedAt: null,
               },
               {
                 id: 'folder_category2_default',
@@ -159,6 +163,8 @@ export const useUserStore = create<UserState>()(
                 order: 2,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
+                isDeleted: false,
+                deletedAt: null,
               },
             ];
             
@@ -299,6 +305,8 @@ export const useUserStore = create<UserState>()(
               createdAt: Date.now(),
               updatedAt: Date.now(),
               password: undefined,
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category1_default',
@@ -309,6 +317,8 @@ export const useUserStore = create<UserState>()(
               order: 1,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category2_default',
@@ -319,12 +329,14 @@ export const useUserStore = create<UserState>()(
               order: 2,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
           ];
-          
-          // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
-          useDataStore.setState({
-            folders: defaultFolders,
+            
+            // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
+            useDataStore.setState({
+              folders: defaultFolders,
             notes: [],
             urls: [],
             trash: [],
@@ -691,6 +703,8 @@ export const useUserStore = create<UserState>()(
               createdAt: Date.now(),
               updatedAt: Date.now(),
               password: undefined,
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category1_default',
@@ -701,6 +715,8 @@ export const useUserStore = create<UserState>()(
               order: 1,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category2_default',
@@ -711,6 +727,8 @@ export const useUserStore = create<UserState>()(
               order: 2,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
           ];
 

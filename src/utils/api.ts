@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT = 30000; // 30秒
 /**
  * 带超时的fetch请求
  */
-import logger from './logger';
+import { logger } from './logger';
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = REQUEST_TIMEOUT): Promise<Response> {
   const controller = new AbortController();

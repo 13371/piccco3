@@ -29,7 +29,7 @@ interface DataState {
   // 文件夹操作
   addFolder: (name: string, type: Folder['type'], color?: FolderColor, password?: string) => string;
   updateFolder: (id: string, updates: Partial<Folder>) => void;
-  deleteFolder: (id: string) => { ok: boolean; message?: string };
+  deleteFolder: (id: string) => Promise<{ ok: boolean; message?: string }>;
   canDeleteFolder: (id: string) => { canDelete: boolean; message?: string };
   toggleFolderStar: (id: string) => void;
   changeFolderColor: (id: string, color: FolderColor) => void;
@@ -60,7 +60,7 @@ interface DataState {
   verifyFolderPassword: (id: string, password: string) => boolean;
   
   // 数据同步方法
-  syncDataFromServer: (retryCount?: number) => Promise<void>;
+  syncDataFromServer: (retryCount?: number, prioritizeServer?: boolean) => Promise<void>;
   syncDataToServer: (isDeleteOperation?: boolean) => Promise<void>;
   getLastSyncTime: () => number | null;
   setLastSyncTime: (time: number | null) => void;
@@ -1037,12 +1037,6 @@ export const useDataStore = create<DataState>()(
           const newFolders = state.folders.filter((f) => !expiredFolderIds.has(f.id));
           
           // 同时删除这些文件夹内的所有笔记和网址
-          const notesInExpiredFolders = newNotes.filter((n) => 
-            n.folderId && expiredFolderIds.has(n.folderId)
-          );
-          const urlsInExpiredFolders = newUrls.filter((u) => 
-            u.folderId && expiredFolderIds.has(u.folderId)
-          );
           const finalNotes = newNotes.filter((n) => 
             !n.folderId || !expiredFolderIds.has(n.folderId)
           );
