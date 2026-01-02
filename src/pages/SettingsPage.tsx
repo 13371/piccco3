@@ -387,7 +387,7 @@ const SettingsPage = () => {
       <Modal
         isOpen={showVersionModal}
         onClose={() => setShowVersionModal(false)}
-        title="版本更新说明 v1.15（测试版）"
+        title="版本更新说明 v1.16（测试版）"
       >
         <div className="version-update-content">
           <div className="version-section">
@@ -399,6 +399,7 @@ const SettingsPage = () => {
               <li>记事编辑改为全屏页面，与新建页面保持一致</li>
               <li>同步状态移至设置页面，支持手动同步</li>
               <li>搜索框聚焦时，取消按钮显示蓝色背景</li>
+              <li>文件夹删除保护：当文件夹内有记事或网址时，无法删除并提示用户</li>
             </ul>
           </div>
           
@@ -410,6 +411,7 @@ const SettingsPage = () => {
               <li>新建记事页面 UI 更圆润，与整体风格更搭配</li>
               <li>设置页面选项适配夜间模式</li>
               <li>优化移动端新建/编辑页面光标可见性</li>
+              <li>优化帮助和反馈页面布局，提升阅读体验</li>
             </ul>
           </div>
           
@@ -420,6 +422,12 @@ const SettingsPage = () => {
               <li>修复头像和用户名更改不同步的问题</li>
               <li>修复移动端光标在底部时被隐藏的问题</li>
               <li>改进移动端输入体验，确保光标始终可见</li>
+              <li><strong>优化多设备同步机制：强制以服务器数据为准，确保数据一致性</strong></li>
+              <li><strong>改进删除操作同步：删除操作现在能可靠地同步到所有设备</strong></li>
+              <li><strong>优化数据合并策略：服务器数据优先，避免数据冲突</strong></li>
+              <li><strong>统一日志系统：生产环境减少日志输出，提升性能</strong></li>
+              <li><strong>改进异步错误处理：修复 setTimeout 中的异步函数错误处理问题</strong></li>
+              <li><strong>优化后端去重逻辑：考虑删除状态，确保数据一致性</strong></li>
             </ul>
           </div>
           
@@ -430,6 +438,21 @@ const SettingsPage = () => {
               <li>修复后端路由注册问题</li>
               <li>修复同步状态显示问题</li>
               <li>修复夜间模式下的颜色显示问题</li>
+              <li><strong>修复删除操作不同步的问题：删除的记事、网址、文件夹现在能正确同步</strong></li>
+              <li><strong>修复同步卡住问题：添加超时保护和状态重置机制</strong></li>
+              <li><strong>修复后端 500 错误：修复变量作用域和命名错误</strong></li>
+              <li><strong>修复数据不一致问题：登录时强制使用服务器数据，确保多设备数据一致</strong></li>
+              <li><strong>修复 JSON 解析错误：改进错误处理，避免解析空响应</strong></li>
+            </ul>
+          </div>
+          
+          <div className="version-section">
+            <h3 className="version-section-title">🔒 系统优化</h3>
+            <ul className="version-list">
+              <li><strong>完善前后端连通性检查：确保所有 API 端点匹配</strong></li>
+              <li><strong>优化认证机制：改进 Token 刷新和错误处理</strong></li>
+              <li><strong>改进网络错误处理：添加超时、重试机制</strong></li>
+              <li><strong>代码质量提升：添加代码检查报告和前后端协调性报告</strong></li>
             </ul>
           </div>
         </div>

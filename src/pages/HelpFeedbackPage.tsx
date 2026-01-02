@@ -39,6 +39,10 @@ const HelpFeedbackPage = () => {
             <p className="help-item-content">{t('helpCreateFolderDesc')}</p>
           </div>
           <div className="help-item">
+            <h3 className="help-item-title">删除文件夹</h3>
+            <p className="help-item-content">删除文件夹时，如果文件夹内还有记事或网址，系统会提示无法删除。请先删除或移出文件夹内的所有内容后，再删除文件夹。这样可以防止误删重要数据。</p>
+          </div>
+          <div className="help-item">
             <h3 className="help-item-title">{t('helpAddUrl')}</h3>
             <p className="help-item-content">{t('helpAddUrlDesc')}</p>
           </div>
@@ -84,7 +88,7 @@ const HelpFeedbackPage = () => {
           </div>
           <div className="help-item">
             <h3 className="help-item-title">版本更新说明</h3>
-            <p className="help-item-content">在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.15（测试版）。</p>
+            <p className="help-item-content">在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.16（测试版），更新日期：2026年。</p>
           </div>
         </section>
 
@@ -100,7 +104,11 @@ const HelpFeedbackPage = () => {
           </div>
           <div className="help-item">
             <h3 className="help-item-title">{t('helpSyncAuto')}</h3>
-            <p className="help-item-content">系统会在以下情况自动同步：登录时自动下载数据、新建或编辑记事保存后自动上传。你也可以在设置页面点击"同步"按钮手动触发同步。</p>
+            <p className="help-item-content">系统会在以下情况自动同步：登录时自动下载数据（优先使用服务器数据）、新建或编辑记事保存后自动上传、删除操作立即同步。你也可以在设置页面点击"同步"按钮手动触发同步。系统采用服务器数据优先策略，确保多设备数据一致性。</p>
+          </div>
+          <div className="help-item">
+            <h3 className="help-item-title">数据同步机制</h3>
+            <p className="help-item-content">系统采用服务器数据优先策略，确保多设备数据一致性。当你登录时，系统会自动从服务器下载最新数据。所有数据变更（新建、编辑、删除）都会自动同步到服务器，并在其他设备上同步。删除操作会立即同步，确保数据一致性。</p>
           </div>
         </section>
 
@@ -136,9 +144,12 @@ const HelpFeedbackPage = () => {
           <h2 className="help-section-title">{t('feedbackTitle')}</h2>
           <p className="feedback-content">{t('feedbackDesc')}</p>
           <p className="feedback-tips">{t('feedbackTips')}</p>
-          <button className="feedback-email-button" onClick={handleEmailClick}>
-            📧 {t('feedbackEmail')}: z13371@qq.com
-          </button>
+          <div className="feedback-actions">
+            <button className="feedback-email-button" onClick={handleEmailClick}>
+              📧 {t('feedbackEmail')}: z13371@qq.com
+            </button>
+            <p className="feedback-note">我们会在收到反馈后尽快回复。感谢您的支持！</p>
+          </div>
         </section>
       </div>
     </div>

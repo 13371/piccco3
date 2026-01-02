@@ -24,7 +24,7 @@ const AboutPage = () => {
         <div className="about-info">
           <div className="about-info-item">
             <span className="about-info-label">{t('version')}</span>
-            <span className="about-info-value">v1.15（测试版）</span>
+            <span className="about-info-value">v1.16（测试版）</span>
           </div>
           <div className="about-info-item">
             <span className="about-info-label">{t('developer')}</span>
@@ -32,7 +32,7 @@ const AboutPage = () => {
           </div>
           <div className="about-info-item">
             <span className="about-info-label">{t('updateDate')}</span>
-            <span className="about-info-value">2025</span>
+            <span className="about-info-value">2026</span>
           </div>
         </div>
       </div>
