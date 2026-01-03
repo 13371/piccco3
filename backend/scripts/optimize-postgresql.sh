@@ -2,23 +2,68 @@
 # PostgreSQL 性能优化脚本
 # 适用于 Ubuntu/Debian 系统
 
-set -e
+# 不设置 set -e，允许某些命令失败
+set +e
 
 echo "🚀 开始优化 PostgreSQL 配置..."
 
-# 检测 PostgreSQL 版本
-PG_VERSION=$(psql --version | grep -oP '\d+' | head -1)
-PG_MAJOR_VERSION=$(echo $PG_VERSION | cut -d. -f1)
+# 检测 PostgreSQL 配置文件位置（多种方法）
+PG_CONF=""
 
-echo "📋 检测到 PostgreSQL 版本: $PG_VERSION"
+# 方法1: 尝试通过 systemctl 查找
+if command -v systemctl >/dev/null 2>&1; then
+    PG_SERVICE=$(systemctl list-units --type=service | grep -i postgresql | head -1 | awk '{print $1}')
+    if [ -n "$PG_SERVICE" ]; then
+        # 从服务名提取版本号（例如 postgresql@14-main）
+        PG_VERSION=$(echo "$PG_SERVICE" | grep -oE '[0-9]+' | head -1)
+        if [ -n "$PG_VERSION" ]; then
+            PG_CONF="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
+        fi
+    fi
+fi
 
-# 配置文件路径
-PG_CONF="/etc/postgresql/${PG_MAJOR_VERSION}/main/postgresql.conf"
+# 方法2: 尝试通过 psql 查找
+if [ -z "$PG_CONF" ] && command -v psql >/dev/null 2>&1; then
+    PG_VERSION=$(psql --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    PG_MAJOR_VERSION=$(echo $PG_VERSION | cut -d. -f1)
+    if [ -n "$PG_MAJOR_VERSION" ]; then
+        PG_CONF="/etc/postgresql/${PG_MAJOR_VERSION}/main/postgresql.conf"
+    fi
+fi
 
-if [ ! -f "$PG_CONF" ]; then
-    echo "❌ 未找到 PostgreSQL 配置文件: $PG_CONF"
+# 方法3: 直接搜索常见位置
+if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
+    # 搜索常见的配置文件位置
+    for possible_conf in \
+        /etc/postgresql/*/main/postgresql.conf \
+        /var/lib/pgsql/*/data/postgresql.conf \
+        /usr/local/pgsql/data/postgresql.conf; do
+        if [ -f "$possible_conf" ]; then
+            PG_CONF="$possible_conf"
+            break
+        fi
+    done
+fi
+
+# 方法4: 使用 find 命令查找
+if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
+    PG_CONF=$(find /etc -name postgresql.conf 2>/dev/null | head -1)
+fi
+
+# 如果仍然找不到，提示用户
+if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
+    echo "❌ 未找到 PostgreSQL 配置文件"
+    echo ""
+    echo "请手动查找配置文件位置："
+    echo "  sudo find /etc -name postgresql.conf"
+    echo "  sudo find /var -name postgresql.conf"
+    echo ""
+    echo "找到后，请手动编辑配置文件，参考："
+    echo "  backend/config/postgresql.conf.example"
     exit 1
 fi
+
+echo "✅ 找到 PostgreSQL 配置文件: $PG_CONF"
 
 echo "📝 备份配置文件..."
 sudo cp "$PG_CONF" "${PG_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
@@ -67,7 +112,12 @@ sleep 5
 
 # 验证配置
 echo "🔍 验证配置..."
-psql -U postgres -c "SHOW shared_buffers;" || echo "⚠️  无法验证配置，请手动检查"
+if command -v psql >/dev/null 2>&1; then
+    psql -U postgres -c "SHOW shared_buffers;" 2>/dev/null || echo "⚠️  无法验证配置，请手动检查"
+else
+    echo "⚠️  psql 命令未找到，请手动验证配置"
+    echo "   可以使用: sudo systemctl status postgresql"
+fi
 
 echo "✅ PostgreSQL 优化完成！"
 echo ""
