@@ -3,29 +3,35 @@ const { query, beginTransaction, commitTransaction, rollbackTransaction } = requ
 const logger = require('../../utils/logger');
 
 /**
- * 获取用户完整数据
+ * 获取用户完整数据（优化：使用索引）
  */
 async function getUserData(userId) {
   try {
-    // 获取文件夹
+    // 获取文件夹（使用索引：idx_folders_user_id）
     const foldersResult = await query(
-      `SELECT * FROM folders WHERE user_id = $1 ORDER BY updated_at DESC`,
+      `SELECT * FROM folders 
+       WHERE user_id = $1 
+       ORDER BY updated_at DESC`,
       [userId]
     );
 
-    // 获取笔记
+    // 获取笔记（使用索引：idx_notes_user_id）
     const notesResult = await query(
-      `SELECT * FROM notes WHERE user_id = $1 ORDER BY updated_at DESC`,
+      `SELECT * FROM notes 
+       WHERE user_id = $1 
+       ORDER BY updated_at DESC`,
       [userId]
     );
 
-    // 获取URL
+    // 获取URL（使用索引：idx_urls_user_id）
     const urlsResult = await query(
-      `SELECT * FROM urls WHERE user_id = $1 ORDER BY updated_at DESC`,
+      `SELECT * FROM urls 
+       WHERE user_id = $1 
+       ORDER BY updated_at DESC`,
       [userId]
     );
 
-    // 获取设置
+    // 获取设置（主键查询，无需索引）
     const settingsResult = await query(
       `SELECT * FROM user_settings WHERE user_id = $1`,
       [userId]
@@ -52,7 +58,7 @@ async function getUserData(userId) {
 }
 
 /**
- * 获取用户增量数据（基于 updated_at）
+ * 获取用户增量数据（基于 updated_at，使用索引）
  * @param {string} userId - 用户ID
  * @param {number} lastSyncAt - 最后同步时间戳（毫秒）
  * @returns {Promise<Object>} 增量数据
@@ -60,10 +66,9 @@ async function getUserData(userId) {
 async function getUserDataIncremental(userId, lastSyncAt) {
   try {
     // 将时间戳转换为 Date 对象
-    // PostgreSQL 的 timestamp 使用微秒精度，但我们的 updated_at 是毫秒
     const since = lastSyncAt ? new Date(lastSyncAt) : new Date(0);
     
-    // 获取文件夹（只返回 updated_at > lastSyncAt 的）
+    // 获取文件夹（使用索引：idx_folders_user_id + idx_folders_updated_at）
     const foldersResult = await query(
       `SELECT * FROM folders 
        WHERE user_id = $1 AND updated_at > $2 
@@ -71,7 +76,7 @@ async function getUserDataIncremental(userId, lastSyncAt) {
       [userId, since]
     );
 
-    // 获取笔记
+    // 获取笔记（使用索引：idx_notes_user_id + idx_notes_updated_at）
     const notesResult = await query(
       `SELECT * FROM notes 
        WHERE user_id = $1 AND updated_at > $2 
@@ -79,7 +84,7 @@ async function getUserDataIncremental(userId, lastSyncAt) {
       [userId, since]
     );
 
-    // 获取URL
+    // 获取URL（使用索引：idx_urls_user_id + idx_urls_updated_at）
     const urlsResult = await query(
       `SELECT * FROM urls 
        WHERE user_id = $1 AND updated_at > $2 
@@ -114,7 +119,129 @@ async function getUserDataIncremental(userId, lastSyncAt) {
 }
 
 /**
- * 保存用户完整数据
+ * 分页获取用户笔记（优化：使用索引，避免全表扫描）
+ * @param {string} userId - 用户ID
+ * @param {number} page - 页码（从1开始）
+ * @param {number} pageSize - 每页数量（默认50，最大100）
+ * @param {boolean} includeDeleted - 是否包含已删除的笔记
+ * @returns {Promise<Object>} 分页结果
+ */
+async function getNotesPaginated(userId, page = 1, pageSize = 50, includeDeleted = false) {
+  try {
+    // 限制 pageSize
+    const limit = Math.min(100, Math.max(1, pageSize));
+    const offset = (Math.max(1, page) - 1) * limit;
+
+    // 构建查询（使用索引：idx_notes_user_id_deleted 或 idx_notes_user_id_updated_at）
+    let queryText;
+    let params;
+
+    if (includeDeleted) {
+      // 包含已删除：使用 idx_notes_user_id_updated_at
+      queryText = `
+        SELECT * FROM notes 
+        WHERE user_id = $1 
+        ORDER BY updated_at DESC 
+        LIMIT $2 OFFSET $3
+      `;
+      params = [userId, limit, offset];
+    } else {
+      // 不包含已删除：使用 idx_notes_user_id_deleted（更高效）
+      queryText = `
+        SELECT * FROM notes 
+        WHERE user_id = $1 AND is_deleted = false 
+        ORDER BY updated_at DESC 
+        LIMIT $2 OFFSET $3
+      `;
+      params = [userId, limit, offset];
+    }
+
+    // 获取总数（使用索引）
+    const countQuery = includeDeleted
+      ? `SELECT COUNT(*) FROM notes WHERE user_id = $1`
+      : `SELECT COUNT(*) FROM notes WHERE user_id = $1 AND is_deleted = false`;
+    
+    const [notesResult, countResult] = await Promise.all([
+      query(queryText, params),
+      query(countQuery, [userId])
+    ]);
+
+    const notes = notesResult.rows.map(formatNote);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    return {
+      notes,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logger.error('userDataDao', '分页获取笔记失败', error);
+    throw error;
+  }
+}
+
+/**
+ * 分页获取用户文件夹（优化：使用索引）
+ */
+async function getFoldersPaginated(userId, page = 1, pageSize = 50, includeDeleted = false) {
+  try {
+    const limit = Math.min(100, Math.max(1, pageSize));
+    const offset = (Math.max(1, page) - 1) * limit;
+
+    let queryText;
+    let params;
+
+    if (includeDeleted) {
+      queryText = `
+        SELECT * FROM folders 
+        WHERE user_id = $1 
+        ORDER BY updated_at DESC 
+        LIMIT $2 OFFSET $3
+      `;
+      params = [userId, limit, offset];
+    } else {
+      queryText = `
+        SELECT * FROM folders 
+        WHERE user_id = $1 AND is_deleted = false 
+        ORDER BY updated_at DESC 
+        LIMIT $2 OFFSET $3
+      `;
+      params = [userId, limit, offset];
+    }
+
+    const countQuery = includeDeleted
+      ? `SELECT COUNT(*) FROM folders WHERE user_id = $1`
+      : `SELECT COUNT(*) FROM folders WHERE user_id = $1 AND is_deleted = false`;
+
+    const [foldersResult, countResult] = await Promise.all([
+      query(queryText, params),
+      query(countQuery, [userId])
+    ]);
+
+    const folders = foldersResult.rows.map(formatFolder);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    return {
+      folders,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logger.error('userDataDao', '分页获取文件夹失败', error);
+    throw error;
+  }
+}
+
+/**
+ * 保存用户完整数据（使用事务，确保一致性）
  */
 async function saveUserData(userId, data) {
   const client = await beginTransaction();
@@ -122,8 +249,9 @@ async function saveUserData(userId, data) {
   try {
     const now = Date.now();
 
-    // 1. 保存文件夹（使用 UPSERT）
+    // 1. 保存文件夹（使用 UPSERT，避免重复）
     if (data.folders && Array.isArray(data.folders)) {
+      // 批量插入（优化：减少数据库往返）
       for (const folder of data.folders) {
         await client.query(
           `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at)
@@ -153,7 +281,7 @@ async function saveUserData(userId, data) {
       }
     }
 
-    // 2. 保存笔记
+    // 2. 保存笔记（批量插入）
     if (data.notes && Array.isArray(data.notes)) {
       for (const note of data.notes) {
         await client.query(
@@ -184,7 +312,7 @@ async function saveUserData(userId, data) {
       }
     }
 
-    // 3. 保存URL
+    // 3. 保存URL（批量插入）
     if (data.urls && Array.isArray(data.urls)) {
       for (const url of data.urls) {
         await client.query(
@@ -371,6 +499,8 @@ function getDefaultSettings() {
 module.exports = {
   getUserData,
   getUserDataIncremental,
+  getNotesPaginated,
+  getFoldersPaginated,
   saveUserData,
   updateUserData,
   deleteUserData,

@@ -21,14 +21,17 @@ max_client_conn = 2000
 # 默认连接池大小（每个数据库的最大连接数）
 default_pool_size = 50
 
+# 保留连接池大小（紧急情况下的最小连接数）
+reserve_pool_size = 10
+
 # 最小连接池大小（保持的最小连接数）
 min_pool_size = 5
 
-# 连接池模式
-# session: 会话模式（推荐用于 Node.js）
-# transaction: 事务模式（更高效，但需要应用支持）
+# 连接池模式（重要：使用 transaction pooling）
+# session: 会话模式（默认）
+# transaction: 事务模式（推荐，更高效，适合 Node.js）
 # statement: 语句模式（最高效，但限制较多）
-pool_mode = session
+pool_mode = transaction
 
 # 连接超时
 server_connect_timeout = 15
@@ -56,5 +59,3 @@ stats_period = 60
 # 管理数据库（用于查看统计信息）
 admin_users = postgres
 stats_users = postgres
-
-
