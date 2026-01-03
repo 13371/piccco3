@@ -15,39 +15,48 @@ cd "$PROJECT_DIR"
 # 1. 检查应用状态
 echo "1️⃣  检查应用状态..."
 if command -v pm2 >/dev/null 2>&1; then
-    # 方法1: 使用 pm2 list（最可靠）
-    # PM2 list 列顺序: id name user watching namespace version mode pid uptime ↺ status cpu mem
-    # status 是第11列（↺ 是第10列）
-    PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $11}' || echo "")
+    # 方法1: 优先使用 pm2 describe（最可靠，返回结构化信息）
+    PM2_STATUS=$(pm2 describe piccco-backend 2>/dev/null | grep -i "status" | head -1 | awk -F: '{print $2}' | tr -d ' ' || echo "")
     
-    # 如果方法1失败，尝试方法2: 使用 pm2 jlist 和 jq
+    # 方法2: 使用 pm2 jlist 和 jq（如果 jq 可用）
     if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
         if command -v jq >/dev/null 2>&1; then
             PM2_STATUS=$(pm2 jlist 2>/dev/null | jq -r '.[] | select(.name=="piccco-backend") | .pm2_env.status' 2>/dev/null || echo "")
         fi
     fi
     
-    # 如果方法2也失败，尝试方法3: 直接检查端口
+    # 方法3: 使用 pm2 list，但先去除表格边框字符
+    if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
+        # 去除表格边框字符（│、└、├等），然后提取 status
+        PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | sed 's/│/ /g' | sed 's/└/ /g' | sed 's/├/ /g' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) if($i=="online" || $i=="stopped" || $i=="errored") print $i}' | head -1 || echo "")
+    fi
+    
+    # 方法4: 直接检查端口（作为最后手段）
     if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
         if command -v netstat >/dev/null 2>&1; then
             if netstat -tlnp 2>/dev/null | grep -q ":4000 "; then
-                PM2_STATUS="online (detected by port)"
+                PM2_STATUS="online"
             fi
         elif command -v ss >/dev/null 2>&1; then
             if ss -tlnp 2>/dev/null | grep -q ":4000 "; then
-                PM2_STATUS="online (detected by port)"
+                PM2_STATUS="online"
             fi
         fi
     fi
     
-    if [ "$PM2_STATUS" = "online" ] || echo "$PM2_STATUS" | grep -q "online"; then
+    # 验证状态
+    if [ "$PM2_STATUS" = "online" ]; then
         echo "   ✅ 应用正在运行（状态: $PM2_STATUS）"
     else
         echo "   ❌ 应用未运行（状态: ${PM2_STATUS:-unknown}）"
         echo "   请启动应用: pm2 start src/server.js --name piccco-backend --update-env"
         echo ""
-        echo "   提示: 如果应用确实在运行，请检查 PM2 输出:"
+        echo "   调试信息:"
+        echo "   PM2 进程列表:"
         pm2 list 2>/dev/null | head -5
+        echo ""
+        echo "   PM2 describe 输出:"
+        pm2 describe piccco-backend 2>/dev/null | head -10
         exit 1
     fi
 else

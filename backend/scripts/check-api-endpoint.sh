@@ -15,13 +15,11 @@ cd "$PROJECT_DIR"
 # 1. 检查应用是否运行
 echo "1️⃣  检查应用状态..."
 if command -v pm2 >/dev/null 2>&1; then
-    # 方法1: 使用 pm2 list（最可靠）
-    # PM2 list 列顺序: id name user watching namespace version mode pid uptime ↺ status cpu mem
-    # status 是第11列（↺ 是第10列），mode 是第7列
-    PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $11}' || echo "")
-    PM2_MODE=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $7}' || echo "")
+    # 方法1: 优先使用 pm2 describe（最可靠）
+    PM2_STATUS=$(pm2 describe piccco-backend 2>/dev/null | grep -i "status" | head -1 | awk -F: '{print $2}' | tr -d ' ' || echo "")
+    PM2_MODE=$(pm2 describe piccco-backend 2>/dev/null | grep -i "exec mode\|mode" | head -1 | awk -F: '{print $2}' | tr -d ' ' || echo "")
     
-    # 如果方法1失败，尝试方法2: 使用 pm2 jlist 和 jq
+    # 方法2: 使用 pm2 jlist 和 jq（如果 jq 可用）
     if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
         if command -v jq >/dev/null 2>&1; then
             PM2_STATUS=$(pm2 jlist 2>/dev/null | jq -r '.[] | select(.name=="piccco-backend") | .pm2_env.status' 2>/dev/null || echo "")
@@ -29,20 +27,26 @@ if command -v pm2 >/dev/null 2>&1; then
         fi
     fi
     
-    # 如果方法2也失败，尝试方法3: 直接检查端口
+    # 方法3: 使用 pm2 list，但先去除表格边框字符
+    if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
+        PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | sed 's/│/ /g' | sed 's/└/ /g' | sed 's/├/ /g' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) if($i=="online" || $i=="stopped" || $i=="errored") print $i}' | head -1 || echo "")
+        PM2_MODE=$(pm2 list 2>/dev/null | grep piccco-backend | sed 's/│/ /g' | sed 's/└/ /g' | sed 's/├/ /g' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) if($i=="fork" || $i=="cluster") print $i}' | head -1 || echo "")
+    fi
+    
+    # 方法4: 直接检查端口（作为最后手段）
     if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
         if command -v netstat >/dev/null 2>&1; then
             if netstat -tlnp 2>/dev/null | grep -q ":4000 "; then
-                PM2_STATUS="online (detected by port)"
+                PM2_STATUS="online"
             fi
         elif command -v ss >/dev/null 2>&1; then
             if ss -tlnp 2>/dev/null | grep -q ":4000 "; then
-                PM2_STATUS="online (detected by port)"
+                PM2_STATUS="online"
             fi
         fi
     fi
     
-    if [ "$PM2_STATUS" = "online" ] || echo "$PM2_STATUS" | grep -q "online"; then
+    if [ "$PM2_STATUS" = "online" ]; then
         echo "   ✅ 应用正在运行（状态: $PM2_STATUS, 模式: ${PM2_MODE:-unknown}）"
     else
         echo "   ❌ 应用未运行（状态: ${PM2_STATUS:-unknown}）"
