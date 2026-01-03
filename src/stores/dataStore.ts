@@ -1495,18 +1495,28 @@ export const useDataStore = create<DataState>()(
                 const deletedNotesCount = mergedNotes.filter((n: Note) => n.isDeleted).length;
                 const deletedUrlsCount = mergedUrls.filter((u: Url) => u.isDeleted).length;
                 
-                // 关键修复：在保存前，检查是否有本地已删除的文件夹被恢复
+                // 关键修复：在保存前，检查是否有本地已删除的项被恢复
                 // 如果有，强制重新标记为已删除
-                const localDeletedBeforeSync = new Set<string>(
+                const localDeletedFoldersBeforeSync = new Set<string>(
                   localData.folders
                     .filter((f: Folder) => f.isDeleted && f.deletedAt)
                     .map((f: Folder) => f.id)
+                );
+                const localDeletedNotesBeforeSync = new Set<string>(
+                  localData.notes
+                    .filter((n: Note) => n.isDeleted && n.deletedAt)
+                    .map((n: Note) => n.id)
+                );
+                const localDeletedUrlsBeforeSync = new Set<string>(
+                  localData.urls
+                    .filter((u: Url) => u.isDeleted && u.deletedAt)
+                    .map((u: Url) => u.id)
                 );
                 
                 // 检查合并后的文件夹，如果有本地已删除的文件夹变成了未删除，强制恢复删除状态
                 const restoredFolders: Folder[] = [];
                 finalVerifiedFolders.forEach((folder: Folder) => {
-                  if (localDeletedBeforeSync.has(folder.id) && !folder.isDeleted) {
+                  if (localDeletedFoldersBeforeSync.has(folder.id) && !folder.isDeleted) {
                     // 本地已删除，但合并后变成了未删除，强制恢复删除状态
                     const originalDeleted = localData.folders.find((f: Folder) => f.id === folder.id);
                     if (originalDeleted && originalDeleted.isDeleted && originalDeleted.deletedAt) {
@@ -1525,18 +1535,69 @@ export const useDataStore = create<DataState>()(
                   }
                 });
                 
-                // 如果有被恢复的文件夹，替换它们
+                // 检查合并后的笔记，如果有本地已删除的笔记变成了未删除，强制恢复删除状态
+                const restoredNotes: Note[] = [];
+                mergedNotes.forEach((note: Note) => {
+                  if (localDeletedNotesBeforeSync.has(note.id) && !note.isDeleted) {
+                    // 本地已删除，但合并后变成了未删除，强制恢复删除状态
+                    const originalDeleted = localData.notes.find((n: Note) => n.id === note.id);
+                    if (originalDeleted && originalDeleted.isDeleted && originalDeleted.deletedAt) {
+                      restoredNotes.push({
+                        ...note,
+                        isDeleted: true,
+                        deletedAt: originalDeleted.deletedAt,
+                        updatedAt: originalDeleted.updatedAt || originalDeleted.deletedAt,
+                      });
+                      logger.error('[dataStore] 检测到已删除的笔记被恢复，强制重新标记为已删除:', {
+                        id: note.id,
+                        originalDeletedAt: originalDeleted.deletedAt,
+                      });
+                    }
+                  }
+                });
+                
+                // 检查合并后的网址，如果有本地已删除的网址变成了未删除，强制恢复删除状态
+                const restoredUrls: Url[] = [];
+                mergedUrls.forEach((url: Url) => {
+                  if (localDeletedUrlsBeforeSync.has(url.id) && !url.isDeleted) {
+                    // 本地已删除，但合并后变成了未删除，强制恢复删除状态
+                    const originalDeleted = localData.urls.find((u: Url) => u.id === url.id);
+                    if (originalDeleted && originalDeleted.isDeleted && originalDeleted.deletedAt) {
+                      restoredUrls.push({
+                        ...url,
+                        isDeleted: true,
+                        deletedAt: originalDeleted.deletedAt,
+                        updatedAt: originalDeleted.updatedAt || originalDeleted.deletedAt,
+                      });
+                      logger.error('[dataStore] 检测到已删除的网址被恢复，强制重新标记为已删除:', {
+                        id: url.id,
+                        title: url.title,
+                        originalDeletedAt: originalDeleted.deletedAt,
+                      });
+                    }
+                  }
+                });
+                
+                // 如果有被恢复的项，替换它们
                 const finalFolders = finalVerifiedFolders.map((folder: Folder) => {
                   const restored = restoredFolders.find((r: Folder) => r.id === folder.id);
                   return restored || folder;
+                });
+                const finalNotes = mergedNotes.map((note: Note) => {
+                  const restored = restoredNotes.find((r: Note) => r.id === note.id);
+                  return restored || note;
+                });
+                const finalUrls = mergedUrls.map((url: Url) => {
+                  const restored = restoredUrls.find((r: Url) => r.id === url.id);
+                  return restored || url;
                 });
                 
                 // 强制要求：同步逻辑（保留所有数据）
                 // 使用 deduplicateById 确保 id 唯一性
                 set({
                   folders: deduplicateById(finalFolders), // 包含已删除的文件夹（isDeleted = true），列表查询时会过滤
-                  notes: deduplicateById(mergedNotes), // 包含已删除的笔记（isDeleted = true），列表查询时会过滤
-                  urls: deduplicateById(mergedUrls), // 包含已删除的网址（isDeleted = true），列表查询时会过滤
+                  notes: deduplicateById(finalNotes), // 包含已删除的笔记（isDeleted = true），列表查询时会过滤
+                  urls: deduplicateById(finalUrls), // 包含已删除的网址（isDeleted = true），列表查询时会过滤
                   trash: [], // 保留 trash 数组（向后兼容），但不再使用
                   lastSyncTime: serverData.lastSyncAt || Date.now(),
                   isDownloading: false,
@@ -1546,8 +1607,12 @@ export const useDataStore = create<DataState>()(
                   lastRetryTime: null,
                 });
                 
-                if (restoredFolders.length > 0) {
-                  logger.warn('[dataStore] 已强制恢复', restoredFolders.length, '个已删除文件夹的删除状态');
+                if (restoredFolders.length > 0 || restoredNotes.length > 0 || restoredUrls.length > 0) {
+                  logger.warn('[dataStore] 已强制恢复删除状态:', {
+                    folders: restoredFolders.length,
+                    notes: restoredNotes.length,
+                    urls: restoredUrls.length,
+                  });
                 }
                 
                 logger.log('[dataStore] 从服务器同步完成（包含已删除的项）:', {
@@ -1932,20 +1997,34 @@ export const useDataStore = create<DataState>()(
                   
                   // 优化：上传成功后，立即从服务器拉取最新数据并强制应用服务器数据
                   // 这确保数据一致性，服务器数据始终是权威来源
-                  logger.log('[dataStore] 上传成功，立即从服务器拉取最新数据并强制应用服务器数据');
+                  // 但是，对于删除操作，需要等待更长时间，确保服务器已处理完删除请求
+                  const delayTime = isDeleteOperation ? 2000 : 1000; // 删除操作延迟2秒，普通操作延迟1秒
+                  logger.log('[dataStore] 上传成功，延迟后从服务器拉取最新数据', { isDeleteOperation, delayTime });
                   // 使用 Promise 包装，确保异步错误被正确处理
                   new Promise<void>((resolve) => {
                     setTimeout(() => {
                       get().syncDataFromServer(0, true) // 强制优先使用服务器数据
                         .then(() => {
                           logger.log('[dataStore] 服务器数据比对和应用完成');
+                          // 删除操作后，验证删除状态是否保留
+                          if (isDeleteOperation) {
+                            const state = get();
+                            const deletedFolders = state.folders.filter(f => f.isDeleted && f.deletedAt);
+                            const deletedNotes = state.notes.filter(n => n.isDeleted && n.deletedAt);
+                            const deletedUrls = state.urls.filter(u => u.isDeleted && u.deletedAt);
+                            logger.log('[dataStore] 删除操作后验证：同步后仍保留的已删除项', {
+                              folders: deletedFolders.length,
+                              notes: deletedNotes.length,
+                              urls: deletedUrls.length,
+                            });
+                          }
                           resolve();
                         })
                         .catch((error) => {
                           logger.error('[dataStore] 从服务器拉取数据失败:', error);
                           resolve(); // 即使失败也 resolve，避免未处理的 Promise
                         });
-                    }, 1000); // 延迟1秒，确保服务器已处理完上传的数据
+                    }, delayTime);
                   });
                 } else {
                   clearTimeout(timeoutProtection);
