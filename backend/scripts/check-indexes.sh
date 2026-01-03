@@ -45,26 +45,19 @@ else
     exit 1
 fi
 
-# 使用 TCP/IP 连接（避免 socket 连接问题）
-PSQL_CMD="$PSQL -h 127.0.0.1 -p 5432"
-
 echo "📋 数据库: $DB_NAME"
 echo ""
 
-# 验证数据库是否存在
+# 验证数据库连接
 echo "🔍 验证数据库连接..."
-if ! $PSQL_CMD -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
-    echo "⚠️  警告: 无法验证数据库 '$DB_NAME'"
-    echo "   尝试直接连接..."
-    if ! $PSQL_CMD -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
-        echo "❌ 错误: 无法连接到数据库 '$DB_NAME'"
-        echo ""
-        echo "可用的数据库列表："
-        $PSQL_CMD -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "template" | grep -v "^postgres$"
-        echo ""
-        echo "请检查 .env 文件中的 DB_NAME 配置"
-        exit 1
-    fi
+if ! $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+    echo "❌ 错误: 无法连接到数据库 '$DB_NAME'"
+    echo ""
+    echo "可用的数据库列表："
+    $PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "template" | grep -v "^postgres$"
+    echo ""
+    echo "请检查 .env 文件中的 DB_NAME 配置"
+    exit 1
 fi
 echo "✅ 数据库连接正常"
 echo ""
@@ -97,7 +90,7 @@ declare -A REQUIRED_INDEXES=(
 echo "📊 当前索引列表："
 echo ""
 
-$PSQL_CMD -U postgres -d "$DB_NAME" <<EOF
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF
 SELECT 
     tablename,
     indexname,
@@ -118,7 +111,7 @@ for key in "${!REQUIRED_INDEXES[@]}"; do
     table=$(echo "$key" | cut -d'.' -f1)
     index=$(echo "$key" | cut -d'.' -f2)
     
-    exists=$($PSQL_CMD -U postgres -d "$DB_NAME" -t -c "
+    exists=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -t -c "
         SELECT COUNT(*) 
         FROM pg_indexes 
         WHERE schemaname = 'public' 

@@ -32,9 +32,6 @@ else
     exit 1
 fi
 
-# 使用 TCP/IP 连接（避免 socket 连接问题）
-PSQL_CMD="$PSQL -h 127.0.0.1 -p 5432"
-
 echo "📋 数据库: $DB_NAME"
 echo "📋 使用 postgres 超级用户执行"
 echo ""
@@ -47,7 +44,7 @@ fi
 
 # 使用 postgres 超级用户执行
 echo "执行索引优化脚本..."
-$PSQL_CMD -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -56,7 +53,7 @@ if [ $? -eq 0 ]; then
     echo "🔍 验证索引..."
     
     # 验证索引是否创建成功
-    $PSQL_CMD -U postgres -d "$DB_NAME" <<EOF
+    $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF
 SELECT 
     schemaname,
     tablename,
