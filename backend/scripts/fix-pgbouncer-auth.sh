@@ -84,11 +84,8 @@ if [ -z "$POSTGRES_HASH" ] || [ "$POSTGRES_HASH" = "" ]; then
     POSTGRES_HASH="md5$(echo -n 'postgres' | md5sum | awk '{print $1}')"
 fi
 
-# 创建用户列表文件（确保变量正确展开）
-sudo bash -c "cat > /etc/pgbouncer/userlist.txt <<EOF
-\"$DB_USER\" \"$MD5_HASH\"
-\"postgres\" \"$POSTGRES_HASH\"
-EOF"
+# 创建用户列表文件（使用 printf 确保变量正确展开）
+sudo bash -c "printf '\"%s\" \"%s\"\n\"%s\" \"%s\"\n' \"$DB_USER\" \"$MD5_HASH\" \"postgres\" \"$POSTGRES_HASH\" > /etc/pgbouncer/userlist.txt"
 
 echo "✅ 用户认证文件已创建"
 echo ""
