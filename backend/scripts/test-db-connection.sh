@@ -54,14 +54,23 @@ fi
 
 echo ""
 echo "2. 检查数据库是否存在..."
-if $PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+# 获取数据库列表并清理（去除空格）
+DB_LIST=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | tr -d ' ' | grep -v "^$" | grep -v "template" | grep -v "^postgres$")
+
+if echo "$DB_LIST" | grep -q "^${DB_NAME}$"; then
     echo "✅ 数据库 '$DB_NAME' 存在"
 else
-    echo "❌ 数据库 '$DB_NAME' 不存在"
-    echo ""
-    echo "可用的数据库列表："
-    $PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "template" | grep -v "^postgres$"
-    exit 1
+    echo "⚠️  数据库 '$DB_NAME' 在列表中未找到，但尝试直接连接..."
+    # 尝试直接连接验证
+    if $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+        echo "✅ 数据库 '$DB_NAME' 可以连接（可能名称匹配问题）"
+    else
+        echo "❌ 数据库 '$DB_NAME' 不存在或无法连接"
+        echo ""
+        echo "可用的数据库列表："
+        echo "$DB_LIST"
+        exit 1
+    fi
 fi
 
 echo ""
