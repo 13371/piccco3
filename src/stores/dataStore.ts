@@ -130,13 +130,31 @@ function mergeItem<T extends { id: string; updatedAt?: number; isDeleted?: boole
   // 强制要求：一切数据以服务器为准
   // 如果服务器有数据，强制使用服务器数据（无论本地数据如何）
   if (prioritizeServer) {
+    // 关键修复：如果本地已删除（isDeleted = true），且服务器未提供 isDeleted 字段或 isDeleted = false，
+    // 且本地的 updatedAt 更大，则保留本地的删除状态
+    // 这防止删除操作后立即同步时，服务器返回旧数据覆盖本地的删除状态
+    if (local.isDeleted && local.deletedAt && local.updatedAt) {
+      const localTime = local.updatedAt || 0;
+      const serverTime = server.updatedAt || 0;
+      // 如果本地已删除，且本地更新时间更大，且服务器未删除或未提供删除状态，保留本地删除状态
+      if ((server.isDeleted === false || server.isDeleted === undefined) && localTime > serverTime) {
+        return {
+          ...server,
+          isDeleted: true,
+          deletedAt: local.deletedAt,
+          updatedAt: local.updatedAt,
+        };
+      }
+    }
+    
     // 服务器有数据，强制使用服务器数据（完全覆盖本地数据）
     // 这确保服务器数据始终是权威来源
     return {
       ...server,
       // 确保所有字段都以服务器为准
-      isDeleted: server.isDeleted !== undefined ? server.isDeleted : false,
-      deletedAt: server.deletedAt !== undefined ? server.deletedAt : null,
+      // 但如果服务器未提供 isDeleted，且本地已删除，保留本地删除状态
+      isDeleted: server.isDeleted !== undefined ? server.isDeleted : (local.isDeleted || false),
+      deletedAt: server.deletedAt !== undefined ? server.deletedAt : (local.deletedAt || null),
       updatedAt: server.updatedAt !== undefined ? server.updatedAt : local.updatedAt,
     };
   }
@@ -485,10 +503,10 @@ export const useDataStore = create<DataState>()(
         
         logger.log('[dataStore] 本地删除完成，尝试同步到后端');
         
-        // 尝试调用后端删除接口（不阻塞，失败也不影响本地删除）
+        // 尝试调用后端删除接口，等待完成后再同步
         const { token } = useUserStore.getState();
         if (token) {
-          // 异步调用后端接口，不等待结果
+          // 先调用后端删除接口，等待完成后再同步
           fetch(`${API_BASE_URL}/v1/data/folder/delete`, {
             method: 'POST',
             headers: {
@@ -499,7 +517,7 @@ export const useDataStore = create<DataState>()(
           })
             .then(async (response) => {
               if (response.ok) {
-                logger.log('[dataStore] 后端删除成功');
+                logger.log('[dataStore] 后端删除成功，等待500ms后同步以确保服务器已保存');
                 // 记录成功日志到后端
                 try {
                   await fetch(`${API_BASE_URL}/v1/data/logs`, {
@@ -514,6 +532,16 @@ export const useDataStore = create<DataState>()(
                     }),
                   }).catch(() => {}); // 忽略日志记录失败
                 } catch {}
+                
+                // 等待500ms确保服务器已保存删除状态，然后再同步
+                setTimeout(() => {
+                  set({ pendingChanges: true });
+                  logger.log('[dataStore] 后端删除完成，触发同步，isDeleteOperation=true');
+                  immediateSync(() => {
+                    logger.log('[dataStore] immediateSync 执行，调用 syncDataToServer(true)');
+                    get().syncDataToServer(true);
+                  });
+                }, 500);
               } else {
                 const errorText = await response.text().catch(() => '');
                 let errorData;
@@ -537,19 +565,26 @@ export const useDataStore = create<DataState>()(
                     }),
                   }).catch(() => {}); // 忽略日志记录失败
                 } catch {}
+                
+                // 即使后端删除失败，也尝试同步（本地已删除）
+                set({ pendingChanges: true });
+                logger.log('[dataStore] 后端删除失败，但仍触发同步，isDeleteOperation=true');
+                immediateSync(() => {
+                  logger.log('[dataStore] immediateSync 执行，调用 syncDataToServer(true)');
+                  get().syncDataToServer(true);
+                });
               }
             })
             .catch((error) => {
               logger.warn('[dataStore] 调用后端删除接口失败，但本地已删除:', error);
+              // 即使请求失败，也尝试同步（本地已删除）
+              set({ pendingChanges: true });
+              logger.log('[dataStore] 后端删除请求失败，但仍触发同步，isDeleteOperation=true');
+              immediateSync(() => {
+                logger.log('[dataStore] immediateSync 执行，调用 syncDataToServer(true)');
+                get().syncDataToServer(true);
+              });
             });
-          
-          // 标记有变更，立即同步到服务器
-          set({ pendingChanges: true });
-          logger.log('[dataStore] 删除文件夹后，立即触发同步，isDeleteOperation=true');
-          immediateSync(() => {
-            logger.log('[dataStore] immediateSync 执行，调用 syncDataToServer(true)');
-            get().syncDataToServer(true);
-          });
         } else {
           // 未登录，只更新本地状态
           set({ pendingChanges: true });
