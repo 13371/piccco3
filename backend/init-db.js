@@ -37,8 +37,8 @@ async function init() {
     process.exit(1);
   } finally {
     // 关闭数据库连接池
-    const { pool } = require('./src/db/config');
-    await pool.end();
+    const { closePool } = require('./src/db/config');
+    await closePool();
   }
 }
 
