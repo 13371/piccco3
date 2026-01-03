@@ -283,7 +283,12 @@ router.post('/login', loginLimiter, async (req, res) => {
       },
     });
   } catch (e) {
-    logger.error('auth', 'login error:', e);
+    logger.error('auth', 'login error:', {
+      message: e.message,
+      stack: e.stack,
+      name: e.name,
+      ...(e.code && { code: e.code }),
+    });
     res.status(500).json({ message: '登录失败，请稍后重试' });
   }
 });

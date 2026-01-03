@@ -74,12 +74,19 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // 默认错误
-  logger.error('errorHandler', '未处理的错误:', err);
+  // 默认错误 - 改进错误记录
+  const errorInfo = {
+    name: err.name,
+    message: err.message || '未知错误',
+    stack: err.stack,
+    ...(err.code && { code: err.code }),
+    ...(err.statusCode && { statusCode: err.statusCode }),
+  };
+  logger.error('errorHandler', '未处理的错误:', errorInfo);
   const statusCode = err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production' 
     ? '服务器内部错误' 
-    : err.message;
+    : (err.message || '未知错误');
 
   res.status(statusCode).json({
     success: false,
