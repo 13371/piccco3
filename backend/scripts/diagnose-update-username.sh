@@ -16,7 +16,9 @@ cd "$PROJECT_DIR"
 echo "1️⃣  检查应用状态..."
 if command -v pm2 >/dev/null 2>&1; then
     # 方法1: 使用 pm2 list（最可靠）
-    PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $10}' || echo "")
+    # PM2 list 列顺序: id name user watching namespace version mode pid uptime ↺ status cpu mem
+    # status 是第11列（↺ 是第10列）
+    PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $11}' || echo "")
     
     # 如果方法1失败，尝试方法2: 使用 pm2 jlist 和 jq
     if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
