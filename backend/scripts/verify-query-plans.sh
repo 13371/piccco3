@@ -38,55 +38,77 @@ echo ""
 
 # 1. 检查 notes 表查询
 echo "1️⃣ 检查 notes 表查询（user_id + is_deleted + updated_at）..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF | grep -E "(Index Scan|Seq Scan|Bitmap Index Scan)" || echo "⚠️  未找到索引扫描信息"
-EXPLAIN ANALYZE
-SELECT * FROM notes 
-WHERE user_id = 'test_user_id' 
-  AND is_deleted = false
-ORDER BY updated_at DESC 
-LIMIT 50;
-EOF
+result=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "EXPLAIN ANALYZE SELECT * FROM notes WHERE user_id = 'test_user_id' AND is_deleted = false ORDER BY updated_at DESC LIMIT 50;" 2>&1)
+if echo "$result" | grep -qE "(Index Scan|Bitmap Index Scan)"; then
+    echo "$result" | grep -E "(Index Scan|Bitmap Index Scan)" | head -1
+    echo "✅ 使用索引扫描"
+elif echo "$result" | grep -q "Seq Scan"; then
+    echo "$result" | grep "Seq Scan" | head -1
+    echo "❌ 全表扫描（需要优化）"
+else
+    echo "⚠️  未找到扫描信息"
+    echo "$result" | head -5
+fi
 echo ""
 
 # 2. 检查 users 表查询
 echo "2️⃣ 检查 users 表查询（email）..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF | grep -E "(Index Scan|Seq Scan|Bitmap Index Scan)" || echo "⚠️  未找到索引扫描信息"
-EXPLAIN ANALYZE
-SELECT * FROM users 
-WHERE email = 'test@example.com';
-EOF
+result=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "EXPLAIN ANALYZE SELECT * FROM users WHERE email = 'test@example.com';" 2>&1)
+if echo "$result" | grep -qE "(Index Scan|Bitmap Index Scan)"; then
+    echo "$result" | grep -E "(Index Scan|Bitmap Index Scan)" | head -1
+    echo "✅ 使用索引扫描"
+elif echo "$result" | grep -q "Seq Scan"; then
+    echo "$result" | grep "Seq Scan" | head -1
+    echo "❌ 全表扫描（需要优化）"
+else
+    echo "⚠️  未找到扫描信息"
+    echo "$result" | head -5
+fi
 echo ""
 
 # 3. 检查 folders 表查询
 echo "3️⃣ 检查 folders 表查询（user_id + is_deleted）..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF | grep -E "(Index Scan|Seq Scan|Bitmap Index Scan)" || echo "⚠️  未找到索引扫描信息"
-EXPLAIN ANALYZE
-SELECT * FROM folders 
-WHERE user_id = 'test_user_id' 
-  AND is_deleted = false
-ORDER BY updated_at DESC;
-EOF
+result=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "EXPLAIN ANALYZE SELECT * FROM folders WHERE user_id = 'test_user_id' AND is_deleted = false ORDER BY updated_at DESC;" 2>&1)
+if echo "$result" | grep -qE "(Index Scan|Bitmap Index Scan)"; then
+    echo "$result" | grep -E "(Index Scan|Bitmap Index Scan)" | head -1
+    echo "✅ 使用索引扫描"
+elif echo "$result" | grep -q "Seq Scan"; then
+    echo "$result" | grep "Seq Scan" | head -1
+    echo "❌ 全表扫描（需要优化）"
+else
+    echo "⚠️  未找到扫描信息"
+    echo "$result" | head -5
+fi
 echo ""
 
 # 4. 检查 logs 表查询
 echo "4️⃣ 检查 logs 表查询（timestamp DESC）..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF | grep -E "(Index Scan|Seq Scan|Bitmap Index Scan)" || echo "⚠️  未找到索引扫描信息"
-EXPLAIN ANALYZE
-SELECT * FROM logs 
-ORDER BY timestamp DESC 
-LIMIT 50;
-EOF
+result=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "EXPLAIN ANALYZE SELECT * FROM logs ORDER BY timestamp DESC LIMIT 50;" 2>&1)
+if echo "$result" | grep -qE "(Index Scan|Bitmap Index Scan)"; then
+    echo "$result" | grep -E "(Index Scan|Bitmap Index Scan)" | head -1
+    echo "✅ 使用索引扫描"
+elif echo "$result" | grep -q "Seq Scan"; then
+    echo "$result" | grep "Seq Scan" | head -1
+    echo "❌ 全表扫描（需要优化）"
+else
+    echo "⚠️  未找到扫描信息"
+    echo "$result" | head -5
+fi
 echo ""
 
 # 5. 检查 messages 表查询
 echo "5️⃣ 检查 messages 表查询（user_id + created_at）..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF | grep -E "(Index Scan|Seq Scan|Bitmap Index Scan)" || echo "⚠️  未找到索引扫描信息"
-EXPLAIN ANALYZE
-SELECT * FROM messages 
-WHERE user_id = 'test_user_id' 
-ORDER BY created_at DESC 
-LIMIT 50;
-EOF
+result=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "EXPLAIN ANALYZE SELECT * FROM messages WHERE user_id = 'test_user_id' ORDER BY created_at DESC LIMIT 50;" 2>&1)
+if echo "$result" | grep -qE "(Index Scan|Bitmap Index Scan)"; then
+    echo "$result" | grep -E "(Index Scan|Bitmap Index Scan)" | head -1
+    echo "✅ 使用索引扫描"
+elif echo "$result" | grep -q "Seq Scan"; then
+    echo "$result" | grep "Seq Scan" | head -1
+    echo "❌ 全表扫描（需要优化）"
+else
+    echo "⚠️  未找到扫描信息"
+    echo "$result" | head -5
+fi
 echo ""
 
 echo "✅ 查询计划验证完成！"
