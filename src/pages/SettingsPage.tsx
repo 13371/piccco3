@@ -387,7 +387,7 @@ const SettingsPage = () => {
       <Modal
         isOpen={showVersionModal}
         onClose={() => setShowVersionModal(false)}
-        title={`${t('versionUpdate')} v1.171（测试版）`}
+        title={`${t('versionUpdate')} v1.172（测试版）`}
       >
         <div className="version-update-content">
           <div className="version-section">
@@ -465,6 +465,15 @@ const SettingsPage = () => {
               <li><strong>优化后端去重逻辑：考虑删除状态，确保删除操作不会丢失，提升数据一致性</strong></li>
               <li><strong>完善前后端同步检查：全面检查 API 路径、数据同步逻辑、多设备同步机制</strong></li>
               <li><strong>改进错误处理：优化异步函数错误处理，修复 setTimeout 中的错误处理问题</strong></li>
+            </ul>
+          </div>
+          
+          <div className="version-section">
+            <h3 className="version-section-title">🎯 v1.172 新增优化</h3>
+            <ul className="version-list">
+              <li><strong>修复标题输入框焦点问题：修复新建/编辑记事时标题输入框无法正常输入的问题，光标不再自动跳转到内容框</strong></li>
+              <li><strong>优化移动端标题输入体验：增强移动端标题输入框的焦点管理，确保键盘弹出/收起时焦点状态正确</strong></li>
+              <li><strong>改进焦点管理机制：添加双重检查机制（activeElement + 状态跟踪），确保电脑端和移动端都能正常工作</strong></li>
             </ul>
           </div>
         </div>

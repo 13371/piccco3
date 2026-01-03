@@ -70,7 +70,7 @@ export const translations = {
     hoursAgo: '小时前',
     daysAgo: '天前',
     versionUpdate: '版本更新说明',
-    versionUpdateDesc: '在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.171（测试版），更新日期：2026年。',
+    versionUpdateDesc: '在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.172（测试版），更新日期：2026年。',
     logViewer: '日志查看器',
     
     // 我的页面

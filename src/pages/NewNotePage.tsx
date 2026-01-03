@@ -45,7 +45,10 @@ const NewNotePage = () => {
   const [content, setContent] = useState('');
   const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>(folderIdFromUrl);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // 跟踪标题输入框是否正在被使用（移动端优化）
+  const [isTitleInputActive, setIsTitleInputActive] = useState(false);
   
   // 保存原始内容，用于比较是否有变化
   const [originalTitle, setOriginalTitle] = useState('');
@@ -159,6 +162,7 @@ const NewNotePage = () => {
   }, []);
 
   // 光标默认在内容框第一行，并确保页面滚动到顶部
+  // 只在页面初始加载时执行，不在内容变化时执行（避免干扰用户输入标题）
   useEffect(() => {
     // 延迟执行，确保DOM已完全渲染
     const timer = setTimeout(() => {
@@ -169,19 +173,27 @@ const NewNotePage = () => {
       // 确保窗口滚动到顶部
       window.scrollTo(0, 0);
       
-      // 聚焦内容框
-      contentRef.current?.focus();
+      // 检查当前焦点是否在标题输入框，如果是则不强制聚焦到内容框
+      // 同时检查状态标记，确保移动端也能正常工作
+      const activeElement = document.activeElement;
+      const isTitleFocused = activeElement === titleRef.current || isTitleInputActive;
       
-      // 将光标移到第一行（位置0）
-      if (contentRef.current) {
-        contentRef.current.setSelectionRange(0, 0);
-        // 确保 textarea 滚动到顶部
-        contentRef.current.scrollTop = 0;
+      // 只有在标题输入框没有焦点时，才聚焦内容框
+      if (!isTitleFocused) {
+        // 聚焦内容框
+        contentRef.current?.focus();
+        
+        // 将光标移到第一行（位置0）
+        if (contentRef.current) {
+          contentRef.current.setSelectionRange(0, 0);
+          // 确保 textarea 滚动到顶部
+          contentRef.current.scrollTop = 0;
+        }
       }
     }, 100); // 稍微延迟，确保内容已加载
     
     return () => clearTimeout(timer);
-  }, [isEditMode, noteIdFromUrl, content, title]); // 当内容加载完成后也触发
+  }, [isEditMode, noteIdFromUrl]); // 只在编辑模式或记事ID变化时触发（页面加载时），不在内容变化时触发
 
   // 检查内容是否有变化
   const hasChanges = useMemo(() => {
@@ -251,11 +263,22 @@ const NewNotePage = () => {
 
           <div className="note-title-wrapper">
             <input
+              ref={titleRef}
               type="text"
               className="note-title-input"
               placeholder="无标题"
               value={title}
               maxLength={10}
+              onFocus={() => {
+                // 标记标题输入框正在使用（移动端优化）
+                setIsTitleInputActive(true);
+              }}
+              onBlur={() => {
+                // 延迟清除标记，避免与useEffect冲突
+                setTimeout(() => {
+                  setIsTitleInputActive(false);
+                }, 200);
+              }}
               onChange={(e) => {
                 const newValue = e.target.value;
                 // 确保不超过10个字符
