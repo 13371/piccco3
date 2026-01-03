@@ -84,16 +84,19 @@ if [ -z "$POSTGRES_HASH" ] || [ "$POSTGRES_HASH" = "" ]; then
     POSTGRES_HASH="md5$(echo -n 'postgres' | md5sum | awk '{print $1}')"
 fi
 
-# 创建用户列表文件
-sudo tee /etc/pgbouncer/userlist.txt > /dev/null <<EOF
-"$DB_USER" "$MD5_HASH"
-"postgres" "$POSTGRES_HASH"
-EOF
+# 创建用户列表文件（确保变量正确展开）
+sudo bash -c "cat > /etc/pgbouncer/userlist.txt <<EOF
+\"$DB_USER\" \"$MD5_HASH\"
+\"postgres\" \"$POSTGRES_HASH\"
+EOF"
 
 echo "✅ 用户认证文件已创建"
 echo ""
 echo "文件内容："
 sudo cat /etc/pgbouncer/userlist.txt
+echo ""
+echo "验证文件内容（应该包含用户名和哈希）："
+echo "  期望格式: \"$DB_USER\" \"$MD5_HASH\""
 echo ""
 
 # 重启 PgBouncer
