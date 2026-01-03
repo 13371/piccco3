@@ -15,26 +15,23 @@ cd "$PROJECT_DIR"
 # 1. 检查应用是否运行
 echo "1️⃣  检查应用状态..."
 if command -v pm2 >/dev/null 2>&1; then
-    # PM2 list 输出格式：id name mode ↺ status cpu memory
-    # 状态在第9列（status），模式在第3列（mode）
-    PM2_STATUS=$(pm2 list | grep piccco-backend | awk '{print $9}' || echo "unknown")
-    PM2_MODE=$(pm2 list | grep piccco-backend | awk '{print $3}' || echo "unknown")
+    # 使用 pm2 jlist 获取 JSON 格式，更可靠
+    PM2_JSON=$(pm2 jlist 2>/dev/null || echo "[]")
+    PM2_STATUS=$(echo "$PM2_JSON" | grep -o '"name":"piccco-backend"[^}]*"status":"[^"]*"' | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
     
     if [ "$PM2_STATUS" = "online" ]; then
+        PM2_MODE=$(echo "$PM2_JSON" | grep -o '"name":"piccco-backend"[^}]*"exec_mode":"[^"]*"' | grep -o '"exec_mode":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
         echo "   ✅ 应用正在运行（状态: $PM2_STATUS, 模式: $PM2_MODE）"
-    elif [ "$PM2_STATUS" = "fork" ]; then
-        # fork 可能是模式而不是状态，重新检查
-        PM2_STATUS=$(pm2 jlist | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "unknown")
-        if [ "$PM2_STATUS" = "online" ]; then
-            echo "   ✅ 应用正在运行（状态: online）"
-        else
-            echo "   ⚠️  应用状态: $PM2_STATUS"
-            echo "   请检查: pm2 list"
-        fi
     else
-        echo "   ❌ 应用未运行（状态: $PM2_STATUS）"
-        echo "   请启动应用: pm2 start src/server.js --name piccco-backend --update-env"
-        exit 1
+        # 如果 JSON 解析失败，尝试使用 pm2 list（去除边框字符）
+        PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | tr -s ' ' | cut -d' ' -f10 | grep -E "online|stopped|errored" || echo "unknown")
+        if [ "$PM2_STATUS" = "online" ]; then
+            echo "   ✅ 应用正在运行（状态: $PM2_STATUS）"
+        else
+            echo "   ❌ 应用未运行（状态: $PM2_STATUS）"
+            echo "   请启动应用: pm2 start src/server.js --name piccco-backend --update-env"
+            exit 1
+        fi
     fi
 else
     echo "   ⚠️  未找到 PM2"
