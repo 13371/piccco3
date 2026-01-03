@@ -116,13 +116,17 @@ WHERE email = '$EMAIL';
 echo "$CURRENT_PWD"
 echo ""
 
-# 更新密码
+# 更新密码（使用单引号转义）
 echo "更新密码..."
+# 转义单引号
+ESCAPED_HASH=$(echo "$BCRYPT_HASH" | sed "s/'/''/g")
+ESCAPED_EMAIL=$(echo "$EMAIL" | sed "s/'/''/g")
+
 UPDATE_RESULT=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "
 UPDATE users 
-SET password = \$1, updated_at = CURRENT_TIMESTAMP
-WHERE email = \$2;
-" -v pwd="$BCRYPT_HASH" -v email="$EMAIL" 2>&1)
+SET password = '$ESCAPED_HASH', updated_at = CURRENT_TIMESTAMP
+WHERE email = '$ESCAPED_EMAIL';
+" 2>&1)
 
 if echo "$UPDATE_RESULT" | grep -q "UPDATE 1"; then
     echo "✅ 密码更新成功"
