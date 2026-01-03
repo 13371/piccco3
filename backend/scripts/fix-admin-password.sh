@@ -60,7 +60,7 @@ echo "正在生成 bcrypt 哈希..."
 TMP_HASH_SCRIPT=$(mktemp)
 cat > "$TMP_HASH_SCRIPT" << 'NODE_EOF'
 const bcrypt = require('bcrypt');
-const password = process.argv[1];
+const password = process.argv[2]; // process.argv[0]=node, [1]=script, [2]=password
 bcrypt.hash(password, 10, (err, hash) => {
   if (err) {
     console.error('ERROR:', err.message);
