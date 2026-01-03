@@ -91,42 +91,48 @@ const corsOptions = {
   origin: (origin, callback) => {
     // 允许没有origin的请求（如移动应用、Postman等）
     if (!origin) {
-      if (isDevelopment) {
-        logger.debug('cors', '允许无origin的请求');
-      }
+      logger.debug('cors', '允许无origin的请求');
       return callback(null, true);
     }
     
-    // 开发环境：记录所有CORS请求
-    if (isDevelopment) {
-      logger.debug('cors', `收到CORS请求，origin: ${origin}`);
-    }
+    // 记录所有CORS请求（用于调试）
+    logger.info('cors', `收到CORS请求，origin: ${origin}，允许列表: [${allowedOrigins.join(', ')}]`);
     
     // 检查是否在允许列表中
     if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-      if (isDevelopment) {
-        logger.debug('cors', `允许的origin: ${origin}`);
-      }
+      logger.info('cors', `✅ 允许的origin（在列表中）: ${origin}`);
       callback(null, true);
-    } else {
-      // 检查是否是 IP 地址（允许通过 IP 访问，这在生产环境中很常见）
-      const isIpAddress = /^https?:\/\/\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(origin);
-      const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
-      
-      // 开发环境：允许所有请求
-      if (isDevelopment) {
-        logger.debug('cors', `开发环境：允许origin: ${origin}`);
-        callback(null, true);
-      } 
-      // 生产环境：如果允许列表为空或包含 IP 地址，允许 IP 访问
-      else if (allowedOrigins.length === 0 || isIpAddress || isLocalhost) {
-        logger.info('cors', `生产环境：允许 IP/localhost origin: ${origin}`);
-        callback(null, true);
-      } else {
-        logger.warn('cors', `拒绝的origin: ${origin}，允许的列表: ${allowedOrigins.join(', ')}`);
-        callback(new Error('Not allowed by CORS'));
-      }
+      return;
     }
+    
+    // 检查是否是 IP 地址或 localhost（允许通过 IP 访问，这在生产环境中很常见）
+    const isIpAddress = /^https?:\/\/\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(origin);
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+    
+    // 开发环境：允许所有请求
+    if (isDevelopment) {
+      logger.info('cors', `✅ 开发环境：允许origin: ${origin}`);
+      callback(null, true);
+      return;
+    }
+    
+    // 生产环境：允许 IP 地址和 localhost
+    if (isIpAddress || isLocalhost) {
+      logger.info('cors', `✅ 生产环境：允许 IP/localhost origin: ${origin}`);
+      callback(null, true);
+      return;
+    }
+    
+    // 如果允许列表为空，也允许（向后兼容）
+    if (allowedOrigins.length === 0) {
+      logger.info('cors', `✅ 允许列表为空，允许origin: ${origin}`);
+      callback(null, true);
+      return;
+    }
+    
+    // 拒绝其他请求
+    logger.warn('cors', `❌ 拒绝的origin: ${origin}，允许的列表: [${allowedOrigins.join(', ')}]`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
