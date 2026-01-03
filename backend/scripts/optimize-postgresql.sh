@@ -31,10 +31,11 @@ if [ -z "$PG_CONF" ] && command -v psql >/dev/null 2>&1; then
     fi
 fi
 
-# 方法3: 直接搜索常见位置
+# 方法3: 直接搜索常见位置（包括宝塔面板）
 if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
-    # 搜索常见的配置文件位置
+    # 搜索常见的配置文件位置（包括宝塔面板）
     for possible_conf in \
+        /www/server/pgsql/data/postgresql.conf \
         /etc/postgresql/*/main/postgresql.conf \
         /var/lib/pgsql/*/data/postgresql.conf \
         /usr/local/pgsql/data/postgresql.conf; do
@@ -45,9 +46,9 @@ if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
     done
 fi
 
-# 方法4: 使用 find 命令查找
+# 方法4: 使用 find 命令查找（包括宝塔面板路径）
 if [ -z "$PG_CONF" ] || [ ! -f "$PG_CONF" ]; then
-    PG_CONF=$(find /etc -name postgresql.conf 2>/dev/null | head -1)
+    PG_CONF=$(find /www /etc /var -name postgresql.conf 2>/dev/null | head -1)
 fi
 
 # 如果仍然找不到，提示用户
