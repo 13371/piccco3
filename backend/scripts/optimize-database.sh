@@ -117,15 +117,14 @@ echo ""
 
 # 4. 执行 VACUUM ANALYZE
 echo "4️⃣ 执行 VACUUM ANALYZE（清理垃圾数据）..."
-$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
-VACUUM ANALYZE users;
-VACUUM ANALYZE folders;
-VACUUM ANALYZE notes;
-VACUUM ANALYZE urls;
-VACUUM ANALYZE messages;
-VACUUM ANALYZE logs;
-VACUUM ANALYZE user_settings;
-EOF
+# VACUUM ANALYZE 不能在事务块中运行，所以需要分别执行
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE users;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE folders;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE notes;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE urls;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE messages;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE logs;"
+$PSQL -h 127.0.0.1 -p 5432 -U "$DB_USER" -d "$DB_NAME" -c "VACUUM ANALYZE user_settings;" 2>/dev/null || true
 echo "✅ VACUUM ANALYZE 完成"
 
 echo ""
