@@ -1,9 +1,9 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const logger = require('../utils/logger');
-const { getAllUsers, filterUsers, findUserById, banUser, unbanUser, deleteUser } = require('../store/userStore');
-const { sendMessageToUser, sendMessageToAllUsers } = require('../store/messageStore');
-const { addMessageHistory, addBroadcastHistory, getMessageHistory, deleteHistory } = require('../store/messageHistoryStore');
+const { userStoreAdapter } = require('../store/storageAdapter');
+const { messageStoreAdapter } = require('../store/storageAdapter');
+const { messageHistoryStoreAdapter } = require('../store/storageAdapter');
 const { requireAdminAuth, checkAdminPassword } = require('../middleware/adminAuth');
 const { getLogs, clearLogs, getLogStats } = require('../store/logStore');
 
@@ -81,7 +81,7 @@ router.get('/users', (req, res) => {
     const { page = 1, limit = 20, search = '', isBanned, sortBy = 'createdAt', order = 'desc' } = req.query;
     
     // 使用 filterUsers 进行搜索和排序
-    let users = filterUsers({
+    let users = await userStoreAdapter.filterUsers({
       keyword: search,
       isBanned: isBanned !== undefined ? isBanned === 'true' : undefined,
       sortBy,
@@ -112,7 +112,7 @@ router.get('/users', (req, res) => {
 router.get('/users/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const user = await findUserById(userId);
+    const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -143,7 +143,7 @@ router.post('/users/:userId/ban', (req, res) => {
       return res.status(400).json({ message: '封禁原因过长（最大500字符）' });
     }
     
-    const user = banUser(userId, reason.trim());
+    const user = await userStoreAdapter.banUser(userId, reason.trim());
     const { password, ...userInfo } = user;
     res.json({ message: '用户已封禁', user: userInfo });
   } catch (e) {
@@ -156,7 +156,7 @@ router.post('/users/:userId/ban', (req, res) => {
 router.post('/users/:userId/unban', (req, res) => {
   try {
     const { userId } = req.params;
-    const user = unbanUser(userId);
+    const user = await userStoreAdapter.unbanUser(userId);
     const { password, ...userInfo } = user;
     res.json({ message: '用户已解封', user: userInfo });
   } catch (e) {
@@ -169,7 +169,7 @@ router.post('/users/:userId/unban', (req, res) => {
 router.delete('/users/:userId', (req, res) => {
   try {
     const { userId } = req.params;
-    deleteUser(userId);
+    await userStoreAdapter.deleteUser(userId);
     res.json({ message: '用户已删除' });
   } catch (e) {
     logger.error('admin', 'delete user error:', e);
@@ -202,14 +202,14 @@ router.post('/users/:userId/message', async (req, res) => {
     }
     
     // 检查用户是否存在
-    const user = await findUserById(userId);
+    const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
     
-    const message = sendMessageToUser(userId, title.trim(), content.trim());
+    const message = await messageStoreAdapter.sendMessageToUser(userId, title.trim(), content.trim());
     // 记录发送历史
-    addMessageHistory({ userId, title: title.trim(), content: content.trim(), type: 'single' });
+    await messageHistoryStoreAdapter.addMessageHistory({ userId, title: title.trim(), content: content.trim(), type: 'single' });
     res.json({ message: '消息已发送', data: message });
   } catch (e) {
     logger.error('admin', 'send message error:', e);
@@ -236,7 +236,7 @@ router.post('/users/message/all', (req, res) => {
     }
     
     // 获取所有用户
-    let users = getAllUsers();
+    let users = await userStoreAdapter.getAllUsers();
     
     // 如果 onlyActive 为 true，只发送给未封禁的用户
     if (onlyActive === true || onlyActive === 'true') {
@@ -248,9 +248,9 @@ router.post('/users/message/all', (req, res) => {
     }
     
     const userIds = users.map(u => u.id);
-    const messages = sendMessageToAllUsers(title.trim(), content.trim(), userIds);
+    const messages = await messageStoreAdapter.sendMessageToAllUsers(title.trim(), content.trim(), userIds);
     // 记录群发历史
-    addBroadcastHistory({ title: title.trim(), content: content.trim(), userCount: messages.length });
+    await messageHistoryStoreAdapter.addBroadcastHistory({ title: title.trim(), content: content.trim(), userCount: messages.length });
     
     res.json({ 
       message: `消息已发送给 ${messages.length} 个用户`, 
@@ -267,7 +267,7 @@ router.post('/users/message/all', (req, res) => {
 router.get('/message-history', (req, res) => {
   try {
     const { page = 1, limit = 20, type, userId } = req.query;
-    const result = getMessageHistory({ page, limit, type, userId });
+    const result = await messageHistoryStoreAdapter.getMessageHistory({ page, limit, type, userId });
     res.json(result);
   } catch (e) {
     logger.error('admin', 'get message history error:', e);
@@ -279,7 +279,7 @@ router.get('/message-history', (req, res) => {
 router.delete('/message-history/:historyId', (req, res) => {
   try {
     const { historyId } = req.params;
-    const deleted = deleteHistory(historyId);
+    const deleted = await messageHistoryStoreAdapter.deleteHistory(historyId);
     if (deleted) {
       res.json({ message: '历史记录已删除' });
     } else {

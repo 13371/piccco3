@@ -1,0 +1,17 @@
+-- PostgreSQL 数据库回滚脚本
+-- 删除所有表和索引（谨慎使用！）
+
+-- 注意：此脚本会删除所有数据，请确保已备份！
+
+DROP TABLE IF EXISTS migration_status CASCADE;
+DROP TABLE IF EXISTS logs CASCADE;
+DROP TABLE IF EXISTS verification_codes CASCADE;
+DROP TABLE IF EXISTS message_history CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS user_settings CASCADE;
+DROP TABLE IF EXISTS urls CASCADE;
+DROP TABLE IF EXISTS notes CASCADE;
+DROP TABLE IF EXISTS folders CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+

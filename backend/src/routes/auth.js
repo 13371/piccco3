@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 
 const { sendVerificationCodeEmail } = require('../config/mailer');
 const { generateCode, saveCode, verifyCode, codes, normalizeEmail } = require('../store/verificationStore');
-const { createUser, findUserByEmail, verifyPassword, updatePassword, deleteUser, findUserById, updateUser } = require('../store/userStore');
+const { userStoreAdapter } = require('../store/storageAdapter');
 
 const router = express.Router();
 
@@ -186,7 +186,9 @@ router.post('/register', registerLimiter, async (req, res) => {
 
   // 验证码正确，尝试创建用户
   try {
-    const user = await createUser({ email: emailKey, username, password });
+    const userId = Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const user = await userStoreAdapter.createUser({ id: userId, email: emailKey, username, password, createdAt });
     // 只有注册成功后才删除验证码
     codes.delete(emailKey);
     logger.info('auth', `用户注册成功: ${email} (key=${emailKey}), 验证码已删除`);
@@ -241,7 +243,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 
   try {
-    const user = await findUserByEmail(email);
+    const user = await userStoreAdapter.findUserByEmail(email);
     if (!user) {
       // 不泄露用户是否存在的信息，统一错误消息
       logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
@@ -256,7 +258,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
-    const ok = await verifyPassword(user, password);
+    const ok = await userStoreAdapter.verifyPassword(user, password);
     if (!ok) {
       // 不泄露密码错误信息，统一错误消息
       logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
@@ -344,7 +346,7 @@ router.post('/change-password', sendCodeLimiter, async (req, res) => {
   }
 
   try {
-    await updatePassword(emailKey, newPassword);
+    await userStoreAdapter.updatePassword(emailKey, newPassword);
     res.json({ message: '密码修改成功' });
   } catch (e) {
     logger.error('auth', 'change-password error:', e);
@@ -444,7 +446,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     
     // 验证用户是否存在
-    const user = await findUserById(userId);
+    const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -467,7 +469,7 @@ router.patch('/me', authenticateToken, async (req, res) => {
     const { username, avatar } = req.body;
     
     // 验证用户是否存在
-    const user = await findUserById(userId);
+    const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -498,7 +500,7 @@ router.patch('/me', authenticateToken, async (req, res) => {
     }
 
     // 更新用户信息
-    const updatedUser = updateUser(userId, updates);
+    const updatedUser = await userStoreAdapter.updateUser(userId, updates);
     logger.info('auth', `用户信息已更新: ${user.email} (ID: ${userId})`, updates);
     
     // 返回更新后的用户信息（排除密码）
@@ -516,7 +518,7 @@ router.delete('/account', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     
     // 验证用户是否存在
-    const user = await findUserById(userId);
+    const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -530,7 +532,7 @@ router.delete('/account', authenticateToken, async (req, res) => {
     }
 
     // 删除用户账户
-    await deleteUser(userId);
+    await userStoreAdapter.deleteUser(userId);
     logger.info('auth', `用户账户已注销: ${user.email} (ID: ${userId})`);
     
     res.json({ message: '账户注销成功' });

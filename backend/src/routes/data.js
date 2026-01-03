@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
-const { getUserData, saveUserData, updateUserData } = require('../store/userDataStore');
+const { userDataStoreAdapter } = require('../store/storageAdapter');
 const { addLog, getLogs, clearLogs, getLogStats } = require('../store/logStore');
 
 /**
@@ -112,7 +112,7 @@ router.get('/sync', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
     
     // 强制要求：先清理重复记录，确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
     // 同步逻辑：保留所有数据（包括已删除的），列表查询时会过滤
@@ -468,7 +468,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
     
     logger.info('data', `保存用户数据: folders=${finalFoldersWithUpdatedAt.length}, notes=${finalNotesWithUpdatedAt.length}, urls=${finalUrlsWithUpdatedAt.length}, permanentlyDeletedFolderIds=${allPermanentlyDeletedIds.size}`);
     
-    const savedData = await saveUserData(userId, userData);
+    const savedData = await userDataStoreAdapter.saveUserData(userId, userData);
     
     res.json({
       success: true,
@@ -492,7 +492,7 @@ router.get('/sync/last', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
     
     res.json({
       success: true,
@@ -513,7 +513,7 @@ router.get('/settings', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
     
     res.json({
       success: true,
@@ -583,7 +583,7 @@ router.patch('/settings', authenticateToken, async (req, res) => {
     }
     
     // 更新数据
-    const updatedData = await updateUserData(userId, {
+    const updatedData = await userDataStoreAdapter.updateUserData(userId, {
       settings: updatedSettings,
     });
     
@@ -621,7 +621,7 @@ router.post('/folder/delete', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '文件夹ID无效' });
     }
 
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
 
     // --- 第一步：按 id 去重（非常关键）---
     const folders = deduplicateById(userData.folders || []);
@@ -680,7 +680,7 @@ router.post('/folder/delete', authenticateToken, async (req, res) => {
         : u
     );
 
-    await saveUserData(userId, {
+    await userDataStoreAdapter.saveUserData(userId, {
       ...userData,
       folders: updatedFolders,
       notes: updatedNotes,
@@ -714,7 +714,7 @@ router.delete('/folders/:folderId', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '文件夹ID无效' });
     }
 
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
 
     // --- 第一步：按 id 去重（非常关键）---
     const folders = deduplicateById(userData.folders || []);
@@ -758,7 +758,7 @@ router.delete('/folders/:folderId', authenticateToken, async (req, res) => {
         : u
     );
 
-    await saveUserData(userId, {
+    await userDataStoreAdapter.saveUserData(userId, {
       ...userData,
       folders: updatedFolders,
       notes: updatedNotes,
@@ -788,7 +788,7 @@ router.post('/cleanup-duplicates', authenticateToken, async (req, res) => {
     }
     
     // 获取当前数据
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
     
     // 清理重复记录
     const beforeFoldersCount = (userData.folders || []).length;
@@ -930,7 +930,7 @@ router.get('/folders/query', authenticateToken, async (req, res) => {
     }
     
     // 获取当前数据
-    const userData = await getUserData(userId);
+    const userData = await userDataStoreAdapter.getUserData(userId);
     
     // 查询所有匹配的文件夹（包括已删除的）
     // 强制要求：先清理重复记录，确保 id 唯一性（只保留 updatedAt 最大的）

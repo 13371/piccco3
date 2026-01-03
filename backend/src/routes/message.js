@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
-const { getUserMessages, markMessageAsRead } = require('../store/messageStore');
+const { messageStoreAdapter } = require('../store/storageAdapter');
 
 const router = express.Router();
 
@@ -37,7 +37,7 @@ router.get('/messages', authenticateToken, (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    const messages = getUserMessages(userId);
+    const messages = await messageStoreAdapter.getUserMessages(userId);
     // 确保时间戳是数字格式
     const formattedMessages = messages.map(msg => ({
       ...msg,
@@ -62,7 +62,7 @@ router.post('/messages/:messageId/read', authenticateToken, (req, res) => {
     }
     
     // 先获取消息，检查是否属于当前用户
-    const userMessages = getUserMessages(userId);
+    const userMessages = await messageStoreAdapter.getUserMessages(userId);
     const message = userMessages.find(m => m.id === messageId);
     
     if (!message) {
@@ -70,7 +70,7 @@ router.post('/messages/:messageId/read', authenticateToken, (req, res) => {
     }
     
     // 标记为已读
-    const updatedMessage = markMessageAsRead(messageId);
+    const updatedMessage = await messageStoreAdapter.markMessageAsRead(messageId);
     if (!updatedMessage) {
       return res.status(500).json({ message: '标记失败' });
     }
