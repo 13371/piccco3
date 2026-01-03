@@ -76,7 +76,7 @@ router.get('/check-auth', (req, res) => {
 router.use(requireAdminAuth);
 
 // 获取所有用户（支持分页、过滤、排序）
-router.get('/users', (req, res) => {
+router.get('/users', async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', isBanned, sortBy = 'createdAt', order = 'desc' } = req.query;
     
@@ -125,7 +125,7 @@ router.get('/users/:userId', async (req, res) => {
 });
 
 // 封禁用户
-router.post('/users/:userId/ban', (req, res) => {
+router.post('/users/:userId/ban', async (req, res) => {
   try {
     const { userId } = req.params;
     let { reason = '' } = req.body || {};
@@ -153,7 +153,7 @@ router.post('/users/:userId/ban', (req, res) => {
 });
 
 // 解封用户
-router.post('/users/:userId/unban', (req, res) => {
+router.post('/users/:userId/unban', async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await userStoreAdapter.unbanUser(userId);
@@ -166,7 +166,7 @@ router.post('/users/:userId/unban', (req, res) => {
 });
 
 // 删除用户
-router.delete('/users/:userId', (req, res) => {
+router.delete('/users/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     await userStoreAdapter.deleteUser(userId);
@@ -218,7 +218,7 @@ router.post('/users/:userId/message', async (req, res) => {
 });
 
 // 向所有用户发送消息
-router.post('/users/message/all', (req, res) => {
+router.post('/users/message/all', async (req, res) => {
   try {
     const { title, content, onlyActive = false } = req.body || {};
     
@@ -264,7 +264,7 @@ router.post('/users/message/all', (req, res) => {
 });
 
 // 获取发送消息历史
-router.get('/message-history', (req, res) => {
+router.get('/message-history', async (req, res) => {
   try {
     const { page = 1, limit = 20, type, userId } = req.query;
     const result = await messageHistoryStoreAdapter.getMessageHistory({ page, limit, type, userId });
@@ -276,7 +276,7 @@ router.get('/message-history', (req, res) => {
 });
 
 // 删除发送历史记录
-router.delete('/message-history/:historyId', (req, res) => {
+router.delete('/message-history/:historyId', async (req, res) => {
   try {
     const { historyId } = req.params;
     const deleted = await messageHistoryStoreAdapter.deleteHistory(historyId);
