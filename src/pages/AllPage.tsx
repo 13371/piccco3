@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useTranslation } from '../i18n/useTranslation';
 import { format } from 'date-fns';
 import ListItem from '../components/ListItem';
 import ContextMenu from '../components/ContextMenu';
@@ -11,6 +12,7 @@ import './AllPage.css';
 
 const AllPage = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const notes = useDataStore((state) => state.getAllNotes(true));
@@ -75,13 +77,13 @@ const AllPage = () => {
 
   return (
     <div className="all-page">
-      <h1 className="page-title">全部</h1>
+      <h1 className="page-title">{t('all')}</h1>
       <button className="add-note-button" onClick={() => navigate('/new-note')}>
-        <AddIcon /> <span>新建记事</span>
+        <AddIcon /> <span>{t('newNote')}</span>
       </button>
       <div className="notes-list">
         {sortedNotes.length === 0 ? (
-          <div className="empty-state">暂无记事</div>
+          <div className="empty-state">{t('noNotes')}</div>
         ) : (
           sortedNotes.map((noteItem) => (
             <div
@@ -108,18 +110,18 @@ const AllPage = () => {
           y={contextMenu.y}
           items={[
             {
-              label: '编辑',
+              label: t('edit'),
               icon: <EditIcon />,
               onClick: () => handleEdit(note.id),
             },
             {
-              label: '删除',
+              label: t('delete'),
               icon: <TrashIcon />,
               onClick: () => deleteNote(note.id),
               danger: true,
             },
             {
-              label: note.isStarred ? '取消星标' : '添加星标',
+              label: note.isStarred ? t('unstar') : t('star'),
               icon: <StarIcon filled={note.isStarred} />,
               onClick: () => toggleNoteStar(note.id),
             },

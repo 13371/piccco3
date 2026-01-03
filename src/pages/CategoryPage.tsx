@@ -269,7 +269,7 @@ const CategoryPage = () => {
                     onClick: async () => {
                       const result = await deleteFolder(folder.id);
                       if (!result.ok) {
-                        setDeleteError(result.message || '删除失败');
+                        setDeleteError(result.message || t('deleteFailed'));
                       }
                     },
                     danger: true,
@@ -289,7 +289,7 @@ const CategoryPage = () => {
           }}
           onConfirm={(password) => handlePasswordConfirm(showPasswordModal, password)}
           mode={passwordMode || 'verify'}
-          title={passwordMode === 'set' ? '设置隐私文件夹密码' : '输入密码'}
+          title={passwordMode === 'set' ? t('setPrivacyPassword') : t('enterPassword')}
         />
       )}
 
@@ -364,7 +364,7 @@ const CategoryPage = () => {
       <Modal
         isOpen={!!deleteError}
         onClose={() => setDeleteError(null)}
-        title="无法删除"
+        title={t('cannotDelete')}
       >
         <div style={{ padding: '20px', textAlign: 'center' }}>
           <p>{deleteError}</p>

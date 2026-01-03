@@ -29,7 +29,7 @@ interface DataState {
   // 文件夹操作
   addFolder: (name: string, type: Folder['type'], color?: FolderColor, password?: string) => string;
   updateFolder: (id: string, updates: Partial<Folder>) => void;
-  deleteFolder: (id: string) => { ok: boolean; message?: string };
+  deleteFolder: (id: string) => Promise<{ ok: boolean; message?: string }>;
   canDeleteFolder: (id: string) => { canDelete: boolean; message?: string };
   toggleFolderStar: (id: string) => void;
   changeFolderColor: (id: string, color: FolderColor) => void;
@@ -60,7 +60,7 @@ interface DataState {
   verifyFolderPassword: (id: string, password: string) => boolean;
   
   // 数据同步方法
-  syncDataFromServer: (retryCount?: number) => Promise<void>;
+  syncDataFromServer: (retryCount?: number, prioritizeServer?: boolean) => Promise<void>;
   syncDataToServer: (isDeleteOperation?: boolean) => Promise<void>;
   getLastSyncTime: () => number | null;
   setLastSyncTime: (time: number | null) => void;
@@ -1036,13 +1036,7 @@ export const useDataStore = create<DataState>()(
           const expiredFolderIds = new Set(expiredFolders.map((f) => f.id));
           const newFolders = state.folders.filter((f) => !expiredFolderIds.has(f.id));
           
-          // 同时删除这些文件夹内的所有笔记和网址
-          const notesInExpiredFolders = newNotes.filter((n) => 
-            n.folderId && expiredFolderIds.has(n.folderId)
-          );
-          const urlsInExpiredFolders = newUrls.filter((u) => 
-            u.folderId && expiredFolderIds.has(u.folderId)
-          );
+          // 同时删除这些文件夹内的所有笔记和网址（这些笔记和网址会随着文件夹一起被删除）
           const finalNotes = newNotes.filter((n) => 
             !n.folderId || !expiredFolderIds.has(n.folderId)
           );
@@ -1131,6 +1125,22 @@ export const useDataStore = create<DataState>()(
       syncRetryCount: 0,
       lastRetryTime: null as number | null,
       
+      /**
+       * 从服务器同步数据到本地
+       * 
+       * @param retryCount - 重试次数（内部使用，用于限制重试）
+       * @param prioritizeServer - 是否优先使用服务器数据（true时服务器数据完全覆盖本地）
+       * @returns Promise<void>
+       * 
+       * @description
+       * 此函数实现了复杂的数据同步逻辑：
+       * 1. 使用同步队列确保操作串行执行，避免并发冲突
+       * 2. 如果正在上传，会等待上传完成后再同步（最多重试3次）
+       * 3. 支持两种模式：
+       *    - prioritizeServer=true: 登录时使用，服务器数据完全覆盖本地
+       *    - prioritizeServer=false: 正常同步，使用 updatedAt 时间戳合并数据
+       * 4. 自动处理 token 刷新和错误重试
+       */
       syncDataFromServer: async (retryCount: number = 0, prioritizeServer: boolean = true) => {
         // 使用同步队列确保操作串行执行
         return syncQueue.add(async () => {

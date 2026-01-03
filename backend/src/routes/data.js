@@ -9,6 +9,12 @@ const { addLog, getLogs, clearLogs, getLogStats } = require('../store/logStore')
  * 强制要求：确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
  * 绝对不允许创建新记录，只允许更新同一个 id 的那条记录
  */
+/**
+ * 去重函数：确保ID唯一性
+ * 优先级：
+ * 1. 删除操作（isDeleted = true）总是优先
+ * 2. updatedAt 更大的
+ */
 function deduplicateById(list = []) {
   const map = new Map();
   list.forEach((item) => {
@@ -18,10 +24,23 @@ function deduplicateById(list = []) {
     if (!map.has(item.id)) {
       map.set(item.id, item);
     } else {
-      // newer wins
       const old = map.get(item.id);
-      if ((item.updatedAt || 0) > (old.updatedAt || 0)) {
+      
+      // 优先考虑删除状态
+      const isDeleteOperation = item.isDeleted === true && !old.isDeleted;
+      const oldIsDeleted = old.isDeleted === true && !item.isDeleted;
+      
+      if (isDeleteOperation) {
+        // 新项是删除操作，优先使用
         map.set(item.id, item);
+      } else if (oldIsDeleted) {
+        // 旧项是删除操作，保留旧项
+        map.set(item.id, old);
+      } else {
+        // 两者都删除或都未删除，使用 updatedAt 更大的
+        if ((item.updatedAt || 0) > (old.updatedAt || 0)) {
+          map.set(item.id, item);
+        }
       }
     }
   });

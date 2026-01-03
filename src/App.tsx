@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -22,33 +23,39 @@ import LogViewerPage from './pages/LogViewerPage';
 import './styles/global.css';
 import './styles/colors.css';
 
+/**
+ * 主应用组件
+ * 使用 ErrorBoundary 包裹整个应用，捕获并处理渲染错误
+ */
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/user-agreement" element={<UserAgreementPage />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<HomePage />} />
-          <Route path="all" element={<AllPage />} />
-          <Route path="url" element={<UrlPage />} />
-          <Route path="url/folder/:folderId" element={<FolderUrlsPage />} />
-          <Route path="category" element={<CategoryPage />} />
-          <Route path="category/:folderId" element={<FolderNotesPage />} />
-          <Route path="new-note" element={<NewNotePage />} />
-          <Route path="search" element={<SearchPage />} />
-          <Route path="me" element={<MePage />} />
-          <Route path="messages" element={<MessageCenterPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="trash" element={<TrashPage />} />
-          <Route path="account-security" element={<AccountSecurityPage />} />
-          <Route path="devices" element={<DeviceManagementPage />} />
-          <Route path="help-feedback" element={<HelpFeedbackPage />} />
-          <Route path="about" element={<AboutPage />} />
-          <Route path="logs" element={<LogViewerPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/user-agreement" element={<UserAgreementPage />} />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="all" element={<AllPage />} />
+            <Route path="url" element={<UrlPage />} />
+            <Route path="url/folder/:folderId" element={<FolderUrlsPage />} />
+            <Route path="category" element={<CategoryPage />} />
+            <Route path="category/:folderId" element={<FolderNotesPage />} />
+            <Route path="new-note" element={<NewNotePage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="me" element={<MePage />} />
+            <Route path="messages" element={<MessageCenterPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="trash" element={<TrashPage />} />
+            <Route path="account-security" element={<AccountSecurityPage />} />
+            <Route path="devices" element={<DeviceManagementPage />} />
+            <Route path="help-feedback" element={<HelpFeedbackPage />} />
+            <Route path="about" element={<AboutPage />} />
+            <Route path="logs" element={<LogViewerPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

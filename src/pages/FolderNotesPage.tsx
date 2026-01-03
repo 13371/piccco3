@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useTranslation } from '../i18n/useTranslation';
 import { format } from 'date-fns';
 import ListItem from '../components/ListItem';
 import ContextMenu from '../components/ContextMenu';
@@ -11,6 +12,7 @@ import './AllPage.css';
 const FolderNotesPage = () => {
   const { folderId } = useParams<{ folderId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const folder = useDataStore((state) =>
     state.getFolderById(folderId || '')
@@ -77,7 +79,7 @@ const FolderNotesPage = () => {
     <div className="all-page">
       <div className="folder-header-row">
         <button className="page-back-button" onClick={() => navigate(-1)}>
-          ← 返回
+          {t('back')}
         </button>
         <h1 className="page-title">{folder.name}</h1>
         <div className="folder-header-spacer" />
@@ -89,12 +91,12 @@ const FolderNotesPage = () => {
           navigate(`/new-note?folderId=${folderId}`);
         }}
       >
-        <AddIcon /> <span>新建记事</span>
+        <AddIcon /> <span>{t('newNote')}</span>
       </button>
 
       <div className="notes-list">
         {sortedNotes.length === 0 ? (
-          <div className="empty-state">暂无记事</div>
+          <div className="empty-state">{t('noNotes')}</div>
         ) : (
           sortedNotes.map((noteItem) => (
             <div key={noteItem.id} onClick={() => handleEdit(noteItem.id)}>
@@ -120,18 +122,18 @@ const FolderNotesPage = () => {
           y={contextMenu.y}
           items={[
             {
-              label: '编辑',
+              label: t('edit'),
               icon: <EditIcon />,
               onClick: () => handleEdit(note.id),
             },
             {
-              label: '删除',
+              label: t('delete'),
               icon: <TrashIcon />,
               onClick: () => deleteNote(note.id),
               danger: true,
             },
             {
-              label: note.isStarred ? '取消星标' : '添加星标',
+              label: note.isStarred ? t('unstar') : t('star'),
               icon: <StarIcon filled={note.isStarred} />,
               onClick: () => toggleNoteStar(note.id),
             },

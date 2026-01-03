@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../stores/userStore';
 import { useMessageStore } from '../stores/messageStore';
 import { useTranslation } from '../i18n/useTranslation';
+import { logger } from '../utils/logger';
 import ListItem from '../components/ListItem';
 import {
   SettingsIcon,
@@ -227,7 +228,7 @@ const MePage = () => {
                     setIsEditingUsername(false);
                   } catch (error) {
                     // 错误已经在updateUsername中处理了，这里不需要额外处理
-                    console.error('更新用户名失败:', error);
+                    logger.error('更新用户名失败:', error);
                   }
                 }}
               >

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getApiBaseUrlDynamic } from '../config/api';
+import { logger } from '../utils/logger';
 import { useDataStore } from './dataStore';
 import { useMessageStore } from './messageStore';
 import { useSettingsStore } from './settingsStore';
@@ -59,7 +60,7 @@ export const useUserStore = create<UserState>()(
       login: async (email: string, password: string) => {
         try {
           const loginUrl = getApiUrl('/auth/login');
-          console.log('[userStore] 登录请求:', { url: loginUrl, email, hostname: window.location.hostname });
+          logger.log('[userStore] 登录请求:', { url: loginUrl, email, hostname: window.location.hostname });
           
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
@@ -75,7 +76,7 @@ export const useUserStore = create<UserState>()(
             clearTimeout(timeoutId);
           } catch (fetchError: unknown) {
             clearTimeout(timeoutId);
-            console.error('[userStore] 登录请求失败:', {
+            logger.error('[userStore] 登录请求失败:', {
               error: fetchError,
               url: loginUrl,
               hostname: window.location.hostname,
@@ -101,7 +102,7 @@ export const useUserStore = create<UserState>()(
           try {
             data = await res.json();
           } catch (e) {
-            console.error('[userStore] JSON解析失败:', e);
+            logger.error('[userStore] JSON解析失败:', e);
             return { ok: false, message: '服务器响应格式错误' };
           }
 
@@ -118,9 +119,9 @@ export const useUserStore = create<UserState>()(
           
           if (isSwitchingUser || isNewUser) {
             if (isSwitchingUser) {
-              console.log('[userStore] 切换用户，清除旧用户数据:', oldUser.id);
+              logger.log('[userStore] 切换用户，清除旧用户数据:', oldUser.id);
             } else {
-              console.log('[userStore] 新用户首次登录，清除可能存在的旧数据');
+              logger.log('[userStore] 新用户首次登录，清除可能存在的旧数据');
             }
             
             // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧数据
@@ -139,6 +140,8 @@ export const useUserStore = create<UserState>()(
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 password: undefined,
+                isDeleted: false,
+                deletedAt: null,
               },
               {
                 id: 'folder_category1_default',
@@ -149,6 +152,8 @@ export const useUserStore = create<UserState>()(
                 order: 1,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
+                isDeleted: false,
+                deletedAt: null,
               },
               {
                 id: 'folder_category2_default',
@@ -159,6 +164,8 @@ export const useUserStore = create<UserState>()(
                 order: 2,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
+                isDeleted: false,
+                deletedAt: null,
               },
             ];
             
@@ -202,7 +209,7 @@ export const useUserStore = create<UserState>()(
             
             // 1. 先下载服务器数据（优先使用服务器最新数据）
             // 这样可以确保B设备登录时使用的是服务器上的最新数据，而不是本地旧数据
-            console.log('[userStore] 登录后从服务器下载最新数据（优先使用服务器数据）');
+            logger.log('[userStore] 登录后从服务器下载最新数据（优先使用服务器数据）');
             await dataStore.syncDataFromServer(0, true); // 第二个参数 true 表示优先使用服务器数据
             
             // 2. 合并后，检查是否有本地新数据需要上传
@@ -231,7 +238,7 @@ export const useUserStore = create<UserState>()(
               });
             
             if (hasLocalNewData || currentState.pendingChanges) {
-              console.log('[userStore] 检测到本地新数据，上传到服务器');
+              logger.log('[userStore] 检测到本地新数据，上传到服务器');
               await dataStore.syncDataToServer();
               // 上传后再次同步，确保数据一致（再次以服务器为准）
               await dataStore.syncDataFromServer(0, true);
@@ -243,7 +250,7 @@ export const useUserStore = create<UserState>()(
 
           return { ok: true };
         } catch (e) {
-          console.error('[userStore] login error:', e);
+          logger.error('[userStore] login error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
         }
       },
@@ -281,7 +288,7 @@ export const useUserStore = create<UserState>()(
           const data = await res.json();
 
           // 新用户注册时，总是清除所有旧数据
-          console.log('[userStore] 新用户注册，清除所有旧数据');
+          logger.log('[userStore] 新用户注册，清除所有旧数据');
           
           // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧数据
           localStorage.removeItem('piccco-data-storage');
@@ -299,6 +306,8 @@ export const useUserStore = create<UserState>()(
               createdAt: Date.now(),
               updatedAt: Date.now(),
               password: undefined,
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category1_default',
@@ -309,6 +318,8 @@ export const useUserStore = create<UserState>()(
               order: 1,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category2_default',
@@ -319,6 +330,8 @@ export const useUserStore = create<UserState>()(
               order: 2,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
           ];
           
@@ -357,7 +370,7 @@ export const useUserStore = create<UserState>()(
 
           return { ok: true };
         } catch (e) {
-          console.error('[userStore] register error:', e);
+          logger.error('[userStore] register error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
         }
       },
@@ -378,7 +391,7 @@ export const useUserStore = create<UserState>()(
 
           return { ok: true };
         } catch (e) {
-          console.error('[userStore] send code error:', e);
+          logger.error('[userStore] send code error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
         }
       },
@@ -399,7 +412,7 @@ export const useUserStore = create<UserState>()(
 
           return { ok: true };
         } catch (e) {
-          console.error('[userStore] change password error:', e);
+          logger.error('[userStore] change password error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
         }
       },
@@ -421,7 +434,7 @@ export const useUserStore = create<UserState>()(
           try {
             data = await res.json();
           } catch (e) {
-            console.error('[userStore] JSON解析失败:', e);
+            logger.error('[userStore] JSON解析失败:', e);
             return { ok: false, message: '服务器响应格式错误' };
           }
           
@@ -436,7 +449,7 @@ export const useUserStore = create<UserState>()(
           
           return { ok: true };
         } catch (e) {
-          console.error('[userStore] refresh token error:', e);
+          logger.error('[userStore] refresh token error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
         }
       },
@@ -519,7 +532,7 @@ export const useUserStore = create<UserState>()(
             }
           }
         } catch (e) {
-          console.error('[userStore] check ban status error:', e);
+          logger.error('[userStore] check ban status error:', e);
         }
         return false;
       },
@@ -554,14 +567,14 @@ export const useUserStore = create<UserState>()(
             }
           } else {
             const error = await res.json().catch(() => ({ message: '更新头像失败' }));
-            console.error('[userStore] updateAvatar error:', error);
+            logger.error('[userStore] updateAvatar error:', error);
             // 即使失败也更新本地状态，保证UI响应
             set({
               currentUser: { ...state.currentUser, avatar } as User,
             });
           }
         } catch (e) {
-          console.error('[userStore] updateAvatar error:', e);
+          logger.error('[userStore] updateAvatar error:', e);
           // 即使失败也更新本地状态，保证UI响应
           set({
             currentUser: { ...state.currentUser, avatar } as User,
@@ -572,14 +585,14 @@ export const useUserStore = create<UserState>()(
       updateUsername: async (username: string) => {
         const state = get();
         if (!state.currentUser || !state.token) {
-          console.error('[userStore] updateUsername: 用户未登录或token不存在');
+          logger.error('[userStore] updateUsername: 用户未登录或token不存在');
           return;
         }
 
         try {
           const url = getApiUrl('/auth/me');
-          console.log('[userStore] 更新用户名，请求URL:', url);
-          console.log('[userStore] 请求数据:', { username });
+          logger.log('[userStore] 更新用户名，请求URL:', url);
+          logger.log('[userStore] 请求数据:', { username });
           
           const res = await fetch(url, {
             method: 'PATCH',
@@ -590,18 +603,18 @@ export const useUserStore = create<UserState>()(
             body: JSON.stringify({ username }),
           });
 
-          console.log('[userStore] 更新用户名响应状态:', res.status);
+          logger.log('[userStore] 更新用户名响应状态:', res.status);
 
           if (res.ok) {
             const data = await res.json();
-            console.log('[userStore] 更新用户名成功，返回数据:', data);
+            logger.log('[userStore] 更新用户名成功，返回数据:', data);
             if (data.user) {
               set({
                 currentUser: { ...state.currentUser, username: data.user.username } as User,
               });
             } else {
               // 如果后端没有返回用户信息，只更新本地状态
-              console.warn('[userStore] 后端未返回用户信息，仅更新本地状态');
+              logger.warn('[userStore] 后端未返回用户信息，仅更新本地状态');
               set({
                 currentUser: { ...state.currentUser, username } as User,
               });
@@ -614,7 +627,7 @@ export const useUserStore = create<UserState>()(
             } catch {
               error = { message: errorText || '更新用户名失败' };
             }
-            console.error('[userStore] updateUsername error:', {
+            logger.error('[userStore] updateUsername error:', {
               status: res.status,
               statusText: res.statusText,
               error,
@@ -623,7 +636,7 @@ export const useUserStore = create<UserState>()(
             // 失败时不更新本地状态，保持原值
           }
         } catch (e) {
-          console.error('[userStore] updateUsername network error:', e);
+          logger.error('[userStore] updateUsername network error:', e);
           const errorMessage = e instanceof Error ? e.message : '未知错误';
           alert(`网络错误，无法更新用户名: ${errorMessage}`);
           // 失败时不更新本地状态，保持原值
@@ -638,7 +651,7 @@ export const useUserStore = create<UserState>()(
           }
 
           const deleteUrl = getApiUrl('/auth/account');
-          console.log('[userStore] 开始注销账户，API:', deleteUrl);
+          logger.log('[userStore] 开始注销账户，API:', deleteUrl);
 
           const res = await fetch(deleteUrl, {
             method: 'DELETE',
@@ -648,24 +661,24 @@ export const useUserStore = create<UserState>()(
             },
           });
 
-          console.log('[userStore] 注销账户响应状态:', res.status, res.statusText);
+          logger.log('[userStore] 注销账户响应状态:', res.status, res.statusText);
 
           // 检查响应是否成功
           if (!res.ok) {
             // 尝试解析错误消息
             try {
               const data = await res.json();
-              console.log('[userStore] 注销账户错误响应:', data);
+              logger.log('[userStore] 注销账户错误响应:', data);
               return { ok: false, message: data.message || '注销账户失败' };
             } catch (e) {
               // 如果无法解析JSON，返回状态码相关的错误
-              console.error('[userStore] 解析错误响应失败:', e);
+              logger.error('[userStore] 解析错误响应失败:', e);
               return { ok: false, message: `注销账户失败 (${res.status})` };
             }
           }
 
           const data = await res.json();
-          console.log('[userStore] 注销账户成功:', data);
+          logger.log('[userStore] 注销账户成功:', data);
 
           // 注销成功，清除所有数据并初始化
           const currentUser = state.currentUser;
@@ -691,6 +704,8 @@ export const useUserStore = create<UserState>()(
               createdAt: Date.now(),
               updatedAt: Date.now(),
               password: undefined,
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category1_default',
@@ -701,6 +716,8 @@ export const useUserStore = create<UserState>()(
               order: 1,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
             {
               id: 'folder_category2_default',
@@ -711,6 +728,8 @@ export const useUserStore = create<UserState>()(
               order: 2,
               createdAt: Date.now(),
               updatedAt: Date.now(),
+              isDeleted: false,
+              deletedAt: null,
             },
           ];
 
@@ -734,7 +753,7 @@ export const useUserStore = create<UserState>()(
 
           return { ok: true, message: '账户注销成功' };
         } catch (e) {
-          console.error('[userStore] delete account error:', e);
+          logger.error('[userStore] delete account error:', e);
           const errorMessage = e instanceof Error ? e.message : '未知错误';
           return { ok: false, message: `网络错误：${errorMessage}，请稍后重试` };
         }

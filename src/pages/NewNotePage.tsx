@@ -8,13 +8,38 @@ const NewNotePage = () => {
   const [searchParams] = useSearchParams();
   const addNote = useDataStore((state) => state.addNote);
   const updateNote = useDataStore((state) => state.updateNote);
-  const folders = useDataStore((state) => state.folders.filter((f) => f.type !== 'url' && f.type !== 'privacy' && !f.isDeleted));
   const getAllNotes = useDataStore((state) => state.getAllNotes);
+  const getFolderById = useDataStore((state) => state.getFolderById);
+  const allFolders = useDataStore((state) => state.folders);
   
   // 从URL参数获取folderId和noteId
   const folderIdFromUrl = searchParams.get('folderId') || undefined;
   const noteIdFromUrl = searchParams.get('noteId') || undefined;
   const isEditMode = !!noteIdFromUrl;
+  
+  // 获取当前选中的文件夹信息（用于判断是否在隐私文件夹中）
+  const currentFolder = useMemo(() => {
+    if (folderIdFromUrl) {
+      return getFolderById(folderIdFromUrl);
+    }
+    return undefined;
+  }, [folderIdFromUrl, getFolderById]);
+  
+  const isInPrivacyFolder = currentFolder?.type === 'privacy';
+  
+  // 文件夹列表：
+  // 1. 如果在隐私文件夹中或编辑模式：显示所有非url类型的文件夹（包括隐私文件夹）
+  // 2. 否则（新建模式且不在隐私文件夹中）：只显示普通文件夹（不包括隐私文件夹）
+  const folders = useMemo(() => {
+    const availableFolders = allFolders.filter((f) => f.type !== 'url' && !f.isDeleted);
+    if (isInPrivacyFolder || isEditMode) {
+      // 在隐私文件夹中或编辑模式：显示所有非url类型的文件夹（包括隐私文件夹）
+      return availableFolders;
+    } else {
+      // 新建模式且不在隐私文件夹中：只显示普通文件夹
+      return availableFolders.filter((f) => f.type !== 'privacy');
+    }
+  }, [allFolders, isInPrivacyFolder, isEditMode]);
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -30,7 +55,8 @@ const NewNotePage = () => {
   // 如果是编辑模式，加载记事内容
   useEffect(() => {
     if (noteIdFromUrl) {
-      const allNotes = getAllNotes(true);
+      // 编辑模式：获取所有记事（包括隐私文件夹中的记事），这样才能正确加载
+      const allNotes = getAllNotes(false);
       const note = allNotes.find((n) => n.id === noteIdFromUrl);
       if (note) {
         // 解析标题和内容
@@ -53,6 +79,18 @@ const NewNotePage = () => {
         setOriginalTitle(noteTitle);
         setOriginalContent(noteContent);
         setOriginalFolderId(note.folderId);
+        
+        // 编辑模式：内容加载完成后，滚动到顶部
+        setTimeout(() => {
+          if (wrapperRef.current) {
+            wrapperRef.current.scrollTop = 0;
+          }
+          window.scrollTo(0, 0);
+          if (contentRef.current) {
+            contentRef.current.scrollTop = 0;
+            contentRef.current.setSelectionRange(0, 0);
+          }
+        }, 150);
       }
     } else {
       // 新建模式，重置原始值
@@ -120,20 +158,30 @@ const NewNotePage = () => {
     }, 100); // 稍微延迟，确保DOM已更新
   }, []);
 
-  // 光标默认在内容框第一行
+  // 光标默认在内容框第一行，并确保页面滚动到顶部
   useEffect(() => {
-    setTimeout(() => {
+    // 延迟执行，确保DOM已完全渲染
+    const timer = setTimeout(() => {
+      // 确保页面滚动到顶部（移动端优化）
+      if (wrapperRef.current) {
+        wrapperRef.current.scrollTop = 0;
+      }
+      // 确保窗口滚动到顶部
+      window.scrollTo(0, 0);
+      
+      // 聚焦内容框
       contentRef.current?.focus();
+      
       // 将光标移到第一行（位置0）
       if (contentRef.current) {
         contentRef.current.setSelectionRange(0, 0);
-        // 滚动到顶部
+        // 确保 textarea 滚动到顶部
         contentRef.current.scrollTop = 0;
       }
-      // 移动端：初始聚焦后也确保光标可见
-      handleCursorScroll();
-    }, 0);
-  }, [isEditMode, handleCursorScroll]);
+    }, 100); // 稍微延迟，确保内容已加载
+    
+    return () => clearTimeout(timer);
+  }, [isEditMode, noteIdFromUrl, content, title]); // 当内容加载完成后也触发
 
   // 检查内容是否有变化
   const hasChanges = useMemo(() => {

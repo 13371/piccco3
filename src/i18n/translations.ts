@@ -52,6 +52,27 @@ export const translations = {
     nightModeNight: '夜间',
     nightModeAuto: '自动',
     
+    // 同步相关
+    syncTitle: '数据同步',
+    syncing: '同步中...',
+    sync: '同步',
+    syncSuccess: '同步成功',
+    syncPending: '待同步',
+    syncCompleted: '已同步',
+    syncNotSynced: '未同步',
+    uploading: '上传中...',
+    downloading: '下载中...',
+    resetSyncState: '重置同步状态',
+    resetSyncConfirm: '同步似乎卡住了，是否重置同步状态？',
+    reset: '重置',
+    justNow: '刚刚',
+    minutesAgo: '分钟前',
+    hoursAgo: '小时前',
+    daysAgo: '天前',
+    versionUpdate: '版本更新说明',
+    versionUpdateDesc: '在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.171（测试版），更新日期：2026年。',
+    logViewer: '日志查看器',
+    
     // 我的页面
     messageCenter: '消息中心',
     about: '关于',
@@ -80,9 +101,16 @@ export const translations = {
     editUrl: '编辑网址',
     addUrl: '添加网址',
     urlTitle: '标题（可选）',
+    urlTitleAuto: '标题（可选，将自动从URL提取）',
     urlPlaceholder: 'URL（例如：example.com 或 https://example.com）',
     noUrls: '暂无网址',
     noFolders: '暂无文件夹',
+    selectFolder: '选择文件夹（可选）',
+    noCategory: '不分类',
+    newUrlFolder: '新建网址文件夹',
+    renameFolder: '重命名文件夹',
+    deleteFailed: '删除失败',
+    cannotDelete: '无法删除',
     
     // 文件夹相关
     newFolderTitle: '新建文件夹',
@@ -327,9 +355,16 @@ export const translations = {
     editUrl: 'Edit URL',
     addUrl: 'Add URL',
     urlTitle: 'Title (optional)',
+    urlTitleAuto: 'Title (optional, will be extracted from URL)',
     urlPlaceholder: 'URL (e.g., example.com or https://example.com)',
     noUrls: 'No URLs',
     noFolders: 'No folders',
+    selectFolder: 'Select Folder (optional)',
+    noCategory: 'No Category',
+    newUrlFolder: 'New URL Folder',
+    renameFolder: 'Rename Folder',
+    deleteFailed: 'Delete Failed',
+    cannotDelete: 'Cannot Delete',
     
     // Folders
     newFolderTitle: 'New Folder',
@@ -499,5 +534,6 @@ export const translations = {
 export const getTranslation = (key: keyof typeof translations.zh, lang: Language): string => {
   return translations[lang][key] || translations.zh[key] || key;
 };
+
 
 

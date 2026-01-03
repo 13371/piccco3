@@ -54,11 +54,11 @@ const SettingsPage = () => {
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     
-    if (seconds < 60) return '刚刚';
-    if (minutes < 60) return `${minutes}分钟前`;
-    if (hours < 24) return `${hours}小时前`;
+    if (seconds < 60) return t('justNow');
+    if (minutes < 60) return `${minutes}${t('minutesAgo')}`;
+    if (hours < 24) return `${hours}${t('hoursAgo')}`;
     const days = Math.floor(hours / 24);
-    return `${days}天前`;
+    return `${days}${t('daysAgo')}`;
   };
   
   // 手动同步（先上传本地数据，再下载服务器数据，一切以服务器为准）
@@ -75,22 +75,22 @@ const SettingsPage = () => {
   // 获取同步状态文本
   const getSyncStatusText = () => {
     if (isUploading || isDownloading) {
-      return isUploading ? '上传中...' : '下载中...';
+      return isUploading ? t('uploading') : t('downloading');
     }
     if (syncError) {
       return syncError;
     }
     if (syncSuccess) {
-      return '同步成功';
+      return t('syncSuccess');
     }
     if (pendingChanges) {
-      return '待同步';
+      return t('syncPending');
     }
     if (lastSyncTime) {
       const timeText = formatLastSyncTime(lastSyncTime);
-      return timeText ? `已同步 ${timeText}` : '已同步';
+      return timeText ? `${t('syncCompleted')} ${timeText}` : t('syncCompleted');
     }
-    return '未同步';
+    return t('syncNotSynced');
   };
   
   // 自动隐藏错误提示（5秒后）
@@ -148,14 +148,14 @@ const SettingsPage = () => {
     },
     {
       icon: <VersionUpdateIcon />,
-      title: '版本更新说明',
+      title: t('versionUpdate'),
       onClick: () => {
         setShowVersionModal(true);
       },
     },
     {
       icon: <span>📋</span>,
-      title: '日志查看器',
+      title: t('logViewer'),
       onClick: () => {
         navigate('/logs');
       },
@@ -182,7 +182,7 @@ const SettingsPage = () => {
           <div className="sync-status-content">
             <span className="sync-status-icon">{syncStatusIcon}</span>
             <div className="sync-status-info">
-              <div className="sync-status-title">数据同步</div>
+              <div className="sync-status-title">{t('syncTitle')}</div>
               <div className={`sync-status-text ${
                 isUploading || isDownloading ? 'syncing' :
                 syncError ? 'error' :
@@ -199,19 +199,19 @@ const SettingsPage = () => {
               onClick={handleManualSync}
               disabled={isUploading || isDownloading}
             >
-              {isUploading || isDownloading ? '同步中...' : '同步'}
+              {isUploading || isDownloading ? t('syncing') : t('sync')}
             </button>
             {(isUploading || isDownloading) && (
               <button 
                 className="sync-reset-button"
                 onClick={() => {
-                  if (window.confirm('同步似乎卡住了，是否重置同步状态？')) {
+                  if (window.confirm(t('resetSyncConfirm'))) {
                     forceResetSyncState();
                   }
                 }}
-                title="重置同步状态"
+                title={t('resetSyncState')}
               >
-                重置
+                {t('reset')}
               </button>
             )}
           </div>
@@ -387,7 +387,7 @@ const SettingsPage = () => {
       <Modal
         isOpen={showVersionModal}
         onClose={() => setShowVersionModal(false)}
-        title="版本更新说明 v1.16（测试版）"
+        title={`${t('versionUpdate')} v1.171（测试版）`}
       >
         <div className="version-update-content">
           <div className="version-section">
@@ -453,6 +453,18 @@ const SettingsPage = () => {
               <li><strong>优化认证机制：改进 Token 刷新和错误处理</strong></li>
               <li><strong>改进网络错误处理：添加超时、重试机制</strong></li>
               <li><strong>代码质量提升：添加代码检查报告和前后端协调性报告</strong></li>
+            </ul>
+          </div>
+          
+          <div className="version-section">
+            <h3 className="version-section-title">🚀 v1.171 新增优化</h3>
+            <ul className="version-list">
+              <li><strong>添加全局错误边界（ErrorBoundary）：捕获渲染错误，防止应用崩溃，提升稳定性</strong></li>
+              <li><strong>统一日志管理系统：使用 logger 替代 console，生产环境自动过滤调试日志，提升性能</strong></li>
+              <li><strong>完善代码注释：为复杂逻辑添加 JSDoc 注释，提升代码可维护性</strong></li>
+              <li><strong>优化后端去重逻辑：考虑删除状态，确保删除操作不会丢失，提升数据一致性</strong></li>
+              <li><strong>完善前后端同步检查：全面检查 API 路径、数据同步逻辑、多设备同步机制</strong></li>
+              <li><strong>改进错误处理：优化异步函数错误处理，修复 setTimeout 中的错误处理问题</strong></li>
             </ul>
           </div>
         </div>

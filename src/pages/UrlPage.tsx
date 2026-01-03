@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useTranslation } from '../i18n/useTranslation';
 import { eventEmitter } from '../utils/events';
 import { FolderColor } from '../types';
 import { optimizeUrl, extractTitleFromUrl } from '../utils/urlOptimizer';
+import { logger } from '../utils/logger';
 import ListItem from '../components/ListItem';
 import Modal from '../components/Modal';
 import ContextMenu from '../components/ContextMenu';
@@ -23,6 +25,7 @@ const UrlPage = () => {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const colors: FolderColor[] = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple'];
   const folders = useDataStore((state) => state.folders.filter((f) => f.type === 'url' && !f.isDeleted));
@@ -134,7 +137,7 @@ const UrlPage = () => {
           .forEach(async (folder) => {
             const result = await deleteFolder(folder.id);
             if (!result.ok) {
-              console.warn('[UrlPage] 删除重复文件夹失败:', result.message);
+              logger.warn('[UrlPage] 删除重复文件夹失败:', result.message);
             }
           });
       }
@@ -182,14 +185,14 @@ const UrlPage = () => {
 
   return (
     <div className="url-page">
-      <h1 className="page-title">网址</h1>
+      <h1 className="page-title">{t('url')}</h1>
       {/* 添加文件夹的大按钮 */}
       <button className="add-url-button" onClick={() => setShowFolderModal(true)}>
-        <AddIcon /> <span>新建文件夹</span>
+        <AddIcon /> <span>{t('newFolder')}</span>
       </button>
       <div className="folders-list">
         {sortedFolders.length === 0 ? (
-          <div className="empty-state">暂无文件夹</div>
+          <div className="empty-state">{t('noFolders')}</div>
         ) : (
           sortedFolders.map((folderItem) => (
             <div
@@ -219,7 +222,7 @@ const UrlPage = () => {
                   />
                 )}
                 title={folderItem.name}
-                subtitle="网址文件夹"
+                subtitle={t('urlFolderType')}
                 isStarred={folderItem.isStarred}
                 onClick={() => handleFolderClick(folderItem.id)}
                 onMenuClick={(e) => handleFolderContextMenu(e, folderItem.id)}
@@ -237,27 +240,27 @@ const UrlPage = () => {
           y={contextMenu.y}
           items={[
             {
-              label: folder.isStarred ? '取消星标' : '添加星标',
+              label: folder.isStarred ? t('unstar') : t('star'),
               icon: <StarIcon filled={folder.isStarred} />,
               onClick: () => toggleFolderStar(folder.id),
             },
             {
-              label: '重命名',
+              label: t('rename'),
               icon: <EditIcon />,
               onClick: () => {
-                const newName = window.prompt('重命名文件夹', folder.name);
+                const newName = window.prompt(t('renameFolder'), folder.name);
                 if (newName && newName.trim()) {
                   updateFolder(folder.id, { name: newName.trim() });
                 }
               },
             },
             {
-              label: '删除',
+              label: t('delete'),
               icon: <TrashIcon />,
               onClick: async () => {
                 const result = await deleteFolder(folder.id);
                 if (!result.ok) {
-                  alert(result.message || '删除失败');
+                  alert(result.message || t('deleteFailed'));
                 }
               },
               danger: true,
@@ -269,7 +272,7 @@ const UrlPage = () => {
       <Modal
         isOpen={showColorModal !== null}
         onClose={() => setShowColorModal(null)}
-        title="选择颜色"
+        title={t('chooseColor')}
       >
         <div className="color-picker">
           {colors.map((color) => (
@@ -296,31 +299,31 @@ const UrlPage = () => {
           setNewTitle('');
           setNewUrl('');
         }}
-        title={contextMenu && url ? '编辑网址' : '添加网址'}
+        title={contextMenu && url ? t('editUrl') : t('addUrl')}
       >
         <div className="add-url-form">
           <input
             type="text"
-            placeholder="标题（可选，将自动从URL提取）"
+            placeholder={t('urlTitleAuto')}
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             className="form-input"
           />
           <input
             type="text"
-            placeholder="URL（例如：example.com 或 https://example.com）"
+            placeholder={t('urlPlaceholder')}
             value={newUrl}
             onChange={(e) => handleUrlChange(e.target.value)}
             className="form-input"
           />
           <div className="form-group">
-            <label className="form-label">选择文件夹（可选）</label>
+            <label className="form-label">{t('selectFolder')}</label>
             <select
               value={selectedFolderId || ''}
               onChange={(e) => setSelectedFolderId(e.target.value || undefined)}
               className="form-input"
             >
-              <option value="">不分类</option>
+              <option value="">{t('noCategory')}</option>
               {folders.map((folder) => (
                 <option key={folder.id} value={folder.id}>
                   {folder.name}
@@ -335,11 +338,11 @@ const UrlPage = () => {
                 setShowFolderModal(true);
               }}
             >
-              <AddIcon /> 新建文件夹
+              <AddIcon /> {t('newFolder')}
             </button>
           </div>
           <button onClick={handleAddUrl} className="form-button">
-            {contextMenu && url ? '保存' : '添加'}
+            {contextMenu && url ? t('save') : t('add')}
           </button>
         </div>
       </Modal>
@@ -351,12 +354,12 @@ const UrlPage = () => {
           setShowFolderModal(false);
           setNewFolderName('');
         }}
-        title="新建网址文件夹"
+        title={t('newUrlFolder')}
       >
         <div className="add-url-form">
           <input
             type="text"
-            placeholder="文件夹名称"
+            placeholder={t('folderName')}
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             className="form-input"
@@ -367,7 +370,7 @@ const UrlPage = () => {
             }}
           />
           <button onClick={handleCreateFolder} className="form-button">
-            创建
+            {t('create')}
           </button>
         </div>
       </Modal>

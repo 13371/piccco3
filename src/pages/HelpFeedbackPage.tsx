@@ -87,8 +87,8 @@ const HelpFeedbackPage = () => {
             <p className="help-item-content">{t('helpLanguageDesc')}</p>
           </div>
           <div className="help-item">
-            <h3 className="help-item-title">版本更新说明</h3>
-            <p className="help-item-content">在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.16（测试版），更新日期：2026年。</p>
+            <h3 className="help-item-title">{t('versionUpdate')}</h3>
+            <p className="help-item-content">{t('versionUpdateDesc')}</p>
           </div>
         </section>
 

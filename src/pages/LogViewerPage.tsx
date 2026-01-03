@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
+import { logger } from '../utils/logger';
 import { useUserStore } from '../stores/userStore';
 import './LogViewerPage.css';
 
@@ -84,7 +85,7 @@ const LogViewerPage = () => {
       try {
         data = JSON.parse(text);
       } catch (e) {
-        console.error('JSON解析失败:', e, '响应内容:', text);
+        logger.error('JSON解析失败:', e, '响应内容:', text);
         throw new Error('服务器返回格式错误');
       }
       if (data.success) {

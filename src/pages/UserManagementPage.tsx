@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
+import { logger } from '../utils/logger';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import './UserManagementPage.css';
@@ -66,7 +67,7 @@ const UserManagementPage = () => {
         alert(data.message || '获取用户列表失败');
       }
     } catch (e) {
-      console.error('获取用户列表失败:', e);
+      logger.error('获取用户列表失败:', e);
       alert('获取用户列表失败');
     } finally {
       setLoading(false);
@@ -89,7 +90,7 @@ const UserManagementPage = () => {
         alert(data.message || '获取用户详情失败');
       }
     } catch (e) {
-      console.error('获取用户详情失败:', e);
+      logger.error('获取用户详情失败:', e);
       alert('获取用户详情失败');
     }
   };
@@ -111,7 +112,7 @@ const UserManagementPage = () => {
         alert(data.message || '封禁用户失败');
       }
     } catch (e) {
-      console.error('封禁用户失败:', e);
+      logger.error('封禁用户失败:', e);
       alert('封禁用户失败');
     }
   };
@@ -130,7 +131,7 @@ const UserManagementPage = () => {
         alert(data.message || '解封用户失败');
       }
     } catch (e) {
-      console.error('解封用户失败:', e);
+      logger.error('解封用户失败:', e);
       alert('解封用户失败');
     }
   };
@@ -149,7 +150,7 @@ const UserManagementPage = () => {
         alert(data.message || '删除用户失败');
       }
     } catch (e) {
-      console.error('删除用户失败:', e);
+      logger.error('删除用户失败:', e);
       alert('删除用户失败');
     }
   };

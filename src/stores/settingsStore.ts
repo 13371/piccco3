@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Language } from '../i18n/translations';
 import { API_BASE_URL } from '../config/api';
+import { logger } from '../utils/logger';
 import { useUserStore } from './userStore';
 
 export type SortMode = 'updatedAt' | 'name';
@@ -118,11 +119,11 @@ export const useSettingsStore = create<SettingsState>()(
           
           if (!res.ok) {
             const error = await res.json().catch(() => ({ message: '同步设置失败' }));
-            console.error('[settingsStore] syncSettingsToServer error:', error);
+            logger.error('[settingsStore] syncSettingsToServer error:', error);
             // 失败时不抛出错误，静默失败
           }
         } catch (e) {
-          console.error('[settingsStore] syncSettingsToServer network error:', e);
+          logger.error('[settingsStore] syncSettingsToServer network error:', e);
           // 网络错误时静默失败，不影响用户体验
         } finally {
           set({ isSyncing: false });
@@ -166,18 +167,18 @@ export const useSettingsStore = create<SettingsState>()(
             const refreshResult = await useUserStore.getState().refreshAccessToken();
             if (refreshResult.ok) {
               // 刷新成功，重试加载
-              console.log('[settingsStore] Token已刷新，重试加载设置');
+              logger.log('[settingsStore] Token已刷新，重试加载设置');
               return get().loadSettingsFromServer();
             } else {
               // 刷新失败，清除登录状态
-              console.warn('[settingsStore] Token无效且刷新失败，清除登录状态');
+              logger.warn('[settingsStore] Token无效且刷新失败，清除登录状态');
               useUserStore.getState().logout();
             }
           } else {
-            console.error('[settingsStore] loadSettingsFromServer error:', res.status);
+            logger.error('[settingsStore] loadSettingsFromServer error:', res.status);
           }
         } catch (e) {
-          console.error('[settingsStore] loadSettingsFromServer network error:', e);
+          logger.error('[settingsStore] loadSettingsFromServer network error:', e);
           // 网络错误时使用本地设置
         }
       },
