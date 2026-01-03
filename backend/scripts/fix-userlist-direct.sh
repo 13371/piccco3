@@ -18,10 +18,17 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# 清理 Windows 行结束符并创建临时 .env 文件
+TMP_ENV=$(mktemp)
+sed 's/\r$//' .env > "$TMP_ENV"
+
 # 使用 source 读取环境变量（更可靠）
 set -a
-source .env
+source "$TMP_ENV"
 set +a
+
+# 清理临时文件
+rm -f "$TMP_ENV"
 
 DB_USER=${DB_USER:-piccco_user}
 DB_PASSWORD=${DB_PASSWORD:-}
