@@ -82,10 +82,9 @@ app.use(helmet({
 // 如果没有明确设置 NODE_ENV=production，默认使用 development 模式
 const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || CONFIG.NODE_ENV === 'development';
 
-// CORS配置：开发环境支持多个来源（包括移动设备）
-const allowedOrigins = isDevelopment
-  ? (FRONTEND_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
-  : [FRONTEND_ORIGIN];
+// CORS配置：支持多个来源（用逗号分隔）
+// 生产环境也需要支持多个来源（如 IP 地址和域名）
+const allowedOrigins = (FRONTEND_ORIGIN || (isDevelopment ? 'http://localhost:5173' : '')).split(',').map(origin => origin.trim()).filter(origin => origin);
 
 // CORS配置对象
 const corsOptions = {
@@ -110,12 +109,21 @@ const corsOptions = {
       }
       callback(null, true);
     } else {
-      // 开发环境：允许来自同一局域网的所有请求（包括IP地址）
+      // 检查是否是 IP 地址（允许通过 IP 访问，这在生产环境中很常见）
+      const isIpAddress = /^https?:\/\/\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(origin);
+      const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+      
+      // 开发环境：允许所有请求
       if (isDevelopment) {
         logger.debug('cors', `开发环境：允许origin: ${origin}`);
         callback(null, true);
+      } 
+      // 生产环境：如果允许列表为空或包含 IP 地址，允许 IP 访问
+      else if (allowedOrigins.length === 0 || isIpAddress || isLocalhost) {
+        logger.info('cors', `生产环境：允许 IP/localhost origin: ${origin}`);
+        callback(null, true);
       } else {
-        logger.warn('cors', `拒绝的origin: ${origin}`);
+        logger.warn('cors', `拒绝的origin: ${origin}，允许的列表: ${allowedOrigins.join(', ')}`);
         callback(new Error('Not allowed by CORS'));
       }
     }
