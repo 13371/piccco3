@@ -42,12 +42,15 @@ if [ -f "/etc/pgbouncer/userlist.txt" ]; then
     echo "✅ 已备份现有文件"
 fi
 
-# 创建临时文件
+# 创建临时文件（使用 printf 避免变量扩展问题）
 TMP_FILE=$(mktemp)
-cat > "$TMP_FILE" <<EOF
-"$DB_USER" "$MD5_HASH"
-"postgres" "md5e8a48653851e28c69d0506508fb27fc5"
-EOF
+printf '"%s" "%s"\n' "$DB_USER" "$MD5_HASH" > "$TMP_FILE"
+printf '"%s" "%s"\n' "postgres" "md5e8a48653851e28c69d0506508fb27fc5" >> "$TMP_FILE"
+
+# 验证临时文件内容
+echo "临时文件内容："
+cat "$TMP_FILE"
+echo ""
 
 # 复制到目标位置
 sudo cp "$TMP_FILE" /etc/pgbouncer/userlist.txt
