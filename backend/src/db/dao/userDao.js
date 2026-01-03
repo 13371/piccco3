@@ -2,6 +2,7 @@
 const { query, beginTransaction, commitTransaction, rollbackTransaction } = require('../config');
 const logger = require('../../utils/logger');
 const cache = require('../../utils/cache');
+const bcrypt = require('bcrypt');
 
 /**
  * 创建用户
@@ -257,6 +258,22 @@ async function updateUser(userId, updates) {
 }
 
 /**
+ * 验证密码
+ */
+async function verifyPassword(user, password) {
+  if (!user || !user.password || !password) {
+    return false;
+  }
+  
+  try {
+    return await bcrypt.compare(password, user.password);
+  } catch (error) {
+    logger.error('userDao', '密码验证失败', error);
+    return false;
+  }
+}
+
+/**
  * 格式化用户数据（数据库字段 -> 应用字段）
  */
 function formatUser(row) {
@@ -286,6 +303,7 @@ module.exports = {
   deleteUser,
   updatePassword,
   updateUser,
+  verifyPassword,
 };
 
 

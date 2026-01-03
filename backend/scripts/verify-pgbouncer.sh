@@ -119,3 +119,4 @@ echo "   1. 检查 PgBouncer 日志: sudo journalctl -u pgbouncer -n 50"
 echo "   2. 检查应用日志: pm2 logs piccco-backend"
 echo "   3. 检查连接池: $PSQL -h 127.0.0.1 -p 6432 -U postgres -d pgbouncer -c 'SHOW POOLS;'"
 
+

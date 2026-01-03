@@ -44,3 +44,4 @@ GRANT USAGE, SELECT ON SEQUENCE migration_status_id_seq TO :app_user;
 
 
 
+

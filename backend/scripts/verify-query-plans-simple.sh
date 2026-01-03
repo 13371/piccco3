@@ -83,3 +83,4 @@ echo "   - Index Scan 或 Bitmap Index Scan = ✅ 使用索引（优秀）"
 echo "   - Seq Scan = ❌ 全表扫描（需要优化）"
 
 
+

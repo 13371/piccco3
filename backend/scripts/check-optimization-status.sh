@@ -192,3 +192,4 @@ echo ""
 echo "详细检查："
 echo "  bash scripts/comprehensive-check.sh"
 
+

@@ -117,3 +117,4 @@ echo "   1. 检查应用日志，确认数据库连接正常"
 echo "   2. 访问 /api/health 端点，检查数据库连接状态"
 echo "   3. 监控 PgBouncer 连接池: $PSQL -h 127.0.0.1 -p 6432 -U postgres -d pgbouncer -c 'SHOW POOLS;'"
 
+

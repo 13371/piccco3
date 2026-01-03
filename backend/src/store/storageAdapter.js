@@ -112,8 +112,15 @@ const userStoreAdapter = {
   },
 
   async verifyPassword(user, password) {
-    loadFileStores();
-    return await fileUserStore.verifyPassword(user, password);
+    // verifyPassword 使用 bcrypt.compare，无论存储模式如何都应该工作
+    // 但为了代码一致性，根据存储模式选择对应的实现
+    if (STORAGE_MODE === 'db' || STORAGE_MODE === 'dual') {
+      loadDbDaos();
+      return await dbUserDao.verifyPassword(user, password);
+    } else {
+      loadFileStores();
+      return await fileUserStore.verifyPassword(user, password);
+    }
   },
 
   async getAllUsers() {
