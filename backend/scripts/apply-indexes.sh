@@ -42,9 +42,19 @@ if [ ! -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql" ]; then
     exit 1
 fi
 
+# 验证数据库连接
+echo "验证数据库连接..."
+if ! $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+    echo "❌ 错误: 无法连接到数据库 '$DB_NAME'"
+    echo ""
+    echo "请先运行测试脚本检查连接："
+    echo "  bash scripts/test-db-connection.sh"
+    exit 1
+fi
+
 # 使用 postgres 超级用户执行
 echo "执行索引优化脚本..."
-if $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"; then
+if $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql" 2>&1; then
     echo ""
     echo "✅ 索引优化完成！"
     echo ""
