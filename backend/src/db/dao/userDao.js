@@ -1,6 +1,7 @@
 // 用户数据访问层（DAO）
 const { query, beginTransaction, commitTransaction, rollbackTransaction } = require('../config');
 const logger = require('../../utils/logger');
+const cache = require('../../utils/cache');
 
 /**
  * 创建用户
@@ -23,12 +24,26 @@ async function createUser({ id, email, username, password, createdAt }) {
 }
 
 /**
- * 根据邮箱查找用户
+ * 根据邮箱查找用户（带缓存）
  */
 async function findUserByEmail(email) {
   try {
+    // 先检查缓存
+    const cacheKey = `user:email:${email}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
     const result = await query('SELECT * FROM users WHERE email = $1', [email]);
-    return result.rows[0] ? formatUser(result.rows[0]) : null;
+    const user = result.rows[0] ? formatUser(result.rows[0]) : null;
+    
+    // 缓存用户信息（5分钟）
+    if (user) {
+      cache.set(cacheKey, user);
+    }
+    
+    return user;
   } catch (error) {
     logger.error('userDao', '查找用户失败', error);
     throw error;
@@ -36,12 +51,26 @@ async function findUserByEmail(email) {
 }
 
 /**
- * 根据ID查找用户
+ * 根据ID查找用户（带缓存）
  */
 async function findUserById(id) {
   try {
+    // 先检查缓存
+    const cacheKey = `user:id:${id}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
     const result = await query('SELECT * FROM users WHERE id = $1', [id]);
-    return result.rows[0] ? formatUser(result.rows[0]) : null;
+    const user = result.rows[0] ? formatUser(result.rows[0]) : null;
+    
+    // 缓存用户信息（5分钟）
+    if (user) {
+      cache.set(cacheKey, user);
+    }
+    
+    return user;
   } catch (error) {
     logger.error('userDao', '查找用户失败', error);
     throw error;
@@ -109,6 +138,10 @@ async function banUser(userId, reason = '') {
        WHERE id = $2`,
       [reason, userId]
     );
+    
+    // 清除缓存
+    cache.del(`user:id:${userId}`);
+    
     return await findUserById(userId);
   } catch (error) {
     logger.error('userDao', '封禁用户失败', error);
@@ -127,6 +160,10 @@ async function unbanUser(userId) {
        WHERE id = $1`,
       [userId]
     );
+    
+    // 清除缓存
+    cache.del(`user:id:${userId}`);
+    
     return await findUserById(userId);
   } catch (error) {
     logger.error('userDao', '解封用户失败', error);
@@ -159,6 +196,10 @@ async function updatePassword(email, newPassword) {
        WHERE email = $2`,
       [newPassword, email]
     );
+    
+    // 清除缓存
+    cache.del(`user:email:${email}`);
+    
     return await findUserByEmail(email);
   } catch (error) {
     logger.error('userDao', '更新密码失败', error);
@@ -199,6 +240,15 @@ async function updateUser(userId, updates) {
       params
     );
 
+    // 清除缓存
+    cache.del(`user:id:${userId}`);
+    
+    // 如果更新了邮箱，也需要清除邮箱缓存（需要先查询旧邮箱）
+    const oldUser = await query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (oldUser.rows[0] && oldUser.rows[0].email) {
+      cache.del(`user:email:${oldUser.rows[0].email}`);
+    }
+
     return await findUserById(userId);
   } catch (error) {
     logger.error('userDao', '更新用户信息失败', error);
@@ -237,5 +287,6 @@ module.exports = {
   updatePassword,
   updateUser,
 };
+
 
 

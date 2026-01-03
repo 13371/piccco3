@@ -1,0 +1,59 @@
+# PgBouncer 连接池配置示例
+# 使用方法：复制到 /etc/pgbouncer/pgbouncer.ini 并重启 PgBouncer
+
+[databases]
+# 数据库配置
+piccco = host=127.0.0.1 port=5432 dbname=piccco
+
+[pgbouncer]
+# 监听地址和端口
+listen_addr = 127.0.0.1
+listen_port = 6432
+
+# 认证配置
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+
+# 连接池配置（重点）
+# 最大客户端连接数（Node 应用连接数）
+max_client_conn = 2000
+
+# 默认连接池大小（每个数据库的最大连接数）
+default_pool_size = 50
+
+# 最小连接池大小（保持的最小连接数）
+min_pool_size = 5
+
+# 连接池模式
+# session: 会话模式（推荐用于 Node.js）
+# transaction: 事务模式（更高效，但需要应用支持）
+# statement: 语句模式（最高效，但限制较多）
+pool_mode = session
+
+# 连接超时
+server_connect_timeout = 15
+server_login_retry = 15
+
+# 空闲连接超时（秒）
+server_idle_timeout = 600
+
+# 查询超时（秒，0 表示无限制）
+query_timeout = 0
+
+# 查询等待超时（秒）
+query_wait_timeout = 120
+
+# 客户端空闲超时（秒）
+client_idle_timeout = 0
+
+# 日志配置
+logfile = /var/log/pgbouncer/pgbouncer.log
+pidfile = /var/run/pgbouncer/pgbouncer.pid
+
+# 统计信息
+stats_period = 60
+
+# 管理数据库（用于查看统计信息）
+admin_users = postgres
+stats_users = postgres
+

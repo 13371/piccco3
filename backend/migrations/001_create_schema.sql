@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+-- 用户表索引（优化查询性能）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users(is_banned);
 
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS folders (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- 文件夹表索引（优化查询性能）
 CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
 CREATE INDEX IF NOT EXISTS idx_folders_user_id_deleted ON folders(user_id, is_deleted);
 CREATE INDEX IF NOT EXISTS idx_folders_updated_at ON folders(updated_at);
@@ -56,10 +58,12 @@ CREATE TABLE IF NOT EXISTS notes (
     FOREIGN KEY (user_id, folder_id) REFERENCES folders(user_id, id) ON DELETE SET NULL
 );
 
+-- 笔记表索引（优化查询性能）
 CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_folder_id ON notes(user_id, folder_id);
 CREATE INDEX IF NOT EXISTS idx_notes_user_id_deleted ON notes(user_id, is_deleted);
 CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
+CREATE INDEX IF NOT EXISTS idx_notes_is_deleted ON notes(is_deleted) WHERE is_deleted = false;
 
 -- 4. URL表
 CREATE TABLE IF NOT EXISTS urls (
@@ -159,5 +163,6 @@ CREATE TABLE IF NOT EXISTS migration_status (
 );
 
 CREATE INDEX IF NOT EXISTS idx_migration_status_user_id ON migration_status(user_id);
+
 
 

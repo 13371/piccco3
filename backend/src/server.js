@@ -212,9 +212,9 @@ app.get('/', (_req, res) => {
   });
 });
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
-});
+// 健康检查和监控接口
+const healthRoutes = require('./routes/health');
+app.use('/api/health', healthRoutes);
 
 // API版本控制 - v1版本（推荐使用）
 app.use('/api/v1/auth', authRoutes);

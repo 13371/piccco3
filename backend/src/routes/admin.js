@@ -292,18 +292,29 @@ router.delete('/message-history/:historyId', async (req, res) => {
 });
 
 /**
- * 获取日志列表（需要管理员权限）
+ * 获取日志列表（需要管理员权限，支持分页）
  * GET /api/v1/admin/logs
  * 查询参数：
- *   - limit: 返回的日志条数（默认100）
+ *   - page: 页码（默认1）
+ *   - pageSize: 每页数量（默认50，最大100）
  *   - level: 过滤日志级别（info, warn, error, debug）
  */
 router.get('/logs', (req, res) => {
   try {
-    const limit = parseInt(req.query.limit || '100', 10);
+    // 分页参数
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || '50', 10)));
     const level = req.query.level || null;
     
-    const logs = getLogs(limit, level);
+    // 获取所有日志
+    const allLogs = getLogs(10000, level); // 先获取足够多的日志用于分页
+    
+    // 分页
+    const total = allLogs.length;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const logs = allLogs.slice(start, end);
+    
     const stats = getLogStats();
     
     res.json({
@@ -311,6 +322,12 @@ router.get('/logs', (req, res) => {
       data: {
         logs,
         stats,
+      },
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
       },
     });
   } catch (e) {

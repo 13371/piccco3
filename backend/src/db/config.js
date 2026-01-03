@@ -3,15 +3,18 @@ const { Pool } = require('pg');
 const logger = require('../utils/logger');
 
 // 从环境变量读取数据库配置
+// 注意：如果使用 PgBouncer，端口应该是 6432，而不是 PostgreSQL 的 5432
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
+  port: parseInt(process.env.DB_PORT || (process.env.USE_PGBOUNCER === 'true' ? '6432' : '5432'), 10),
   database: process.env.DB_NAME || 'piccco',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
-  max: parseInt(process.env.DB_POOL_MAX || '20', 10), // 连接池最大连接数
+  max: parseInt(process.env.DB_POOL_MAX || '20', 10), // 连接池最大连接数（单实例最大20）
   idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000', 10),
   connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000', 10),
+  // 如果使用 PgBouncer，需要设置 application_name
+  application_name: process.env.USE_PGBOUNCER === 'true' ? 'piccco-app' : undefined,
 };
 
 // 创建连接池
@@ -159,5 +162,6 @@ module.exports = {
   checkConnection,
   dbConfig,
 };
+
 
 
