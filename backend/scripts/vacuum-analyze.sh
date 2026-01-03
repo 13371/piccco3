@@ -37,22 +37,40 @@ echo ""
 
 # VACUUM ANALYZE 不能在事务块中运行，所以需要分别执行
 echo "清理 users 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE users;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE users;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  users 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo "清理 notes 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE notes;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE notes;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  notes 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo "清理 folders 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE folders;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE folders;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  folders 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo "清理 messages 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE messages;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE messages;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  messages 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo "清理 logs 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE logs;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE logs;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  logs 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo "清理 urls 表..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE urls;"
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "VACUUM ANALYZE urls;" 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  urls 表 VACUUM 失败，继续执行其他表..."
+fi
 
 echo ""
 echo "✅ VACUUM ANALYZE 完成！"
