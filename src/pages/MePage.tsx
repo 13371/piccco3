@@ -27,6 +27,7 @@ const MePage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState('');
+  const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -216,23 +217,28 @@ const MePage = () => {
               </button>
               <button
                 className="me-username-confirm"
+                disabled={isUpdatingUsername}
                 onClick={async () => {
                   const name = newUsername.trim();
                   if (!name) {
                     alert(t('usernameRequired'));
                     return;
                   }
+                  setIsUpdatingUsername(true);
                   try {
                     await updateUsername(name);
                     // 只有成功时才关闭编辑模态框
                     setIsEditingUsername(false);
+                    setNewUsername('');
                   } catch (error) {
                     // 错误已经在updateUsername中处理了，这里不需要额外处理
                     logger.error('更新用户名失败:', error);
+                  } finally {
+                    setIsUpdatingUsername(false);
                   }
                 }}
               >
-                {t('save')}
+                {isUpdatingUsername ? t('saving') || '保存中...' : t('save')}
               </button>
             </div>
           </div>

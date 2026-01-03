@@ -216,6 +216,7 @@ async function updateUser(userId, updates) {
     const setClauses = [];
     const params = [];
     let paramIndex = 1;
+    let needsEmailCacheClear = false;
 
     if (updates.username !== undefined) {
       setClauses.push(`username = $${paramIndex}`);
@@ -229,6 +230,13 @@ async function updateUser(userId, updates) {
       paramIndex++;
     }
 
+    if (updates.email !== undefined) {
+      setClauses.push(`email = $${paramIndex}`);
+      params.push(updates.email);
+      paramIndex++;
+      needsEmailCacheClear = true;
+    }
+
     if (setClauses.length === 0) {
       return await findUserById(userId);
     }
@@ -236,21 +244,38 @@ async function updateUser(userId, updates) {
     setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
     params.push(userId);
 
-    await query(
-      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${paramIndex}`,
+    // 如果更新了邮箱，需要先获取旧邮箱以清除缓存
+    let oldEmail = null;
+    if (needsEmailCacheClear) {
+      const oldUserResult = await query('SELECT email FROM users WHERE id = $1', [userId]);
+      if (oldUserResult.rows[0] && oldUserResult.rows[0].email) {
+        oldEmail = oldUserResult.rows[0].email;
+      }
+    }
+
+    // 使用 RETURNING 子句直接返回更新后的数据，避免额外的查询
+    const result = await query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
       params
     );
 
-    // 清除缓存
-    cache.del(`user:id:${userId}`);
-    
-    // 如果更新了邮箱，也需要清除邮箱缓存（需要先查询旧邮箱）
-    const oldUser = await query('SELECT email FROM users WHERE id = $1', [userId]);
-    if (oldUser.rows[0] && oldUser.rows[0].email) {
-      cache.del(`user:email:${oldUser.rows[0].email}`);
+    if (!result.rows[0]) {
+      throw new Error('用户不存在');
     }
 
-    return await findUserById(userId);
+    const updatedUser = formatUser(result.rows[0]);
+
+    // 清除缓存
+    cache.del(`user:id:${userId}`);
+    if (oldEmail) {
+      cache.del(`user:email:${oldEmail}`);
+    }
+    // 如果更新了邮箱，也清除新邮箱的缓存
+    if (needsEmailCacheClear && updatedUser.email) {
+      cache.del(`user:email:${updatedUser.email}`);
+    }
+
+    return updatedUser;
   } catch (error) {
     logger.error('userDao', '更新用户信息失败', error);
     throw error;
