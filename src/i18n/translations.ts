@@ -327,6 +327,24 @@ export const translations = {
     nightModeNight: 'Night',
     nightModeAuto: 'Auto',
     
+    // Sync related
+    syncTitle: 'Data Sync',
+    syncing: 'Syncing...',
+    sync: 'Sync',
+    syncSuccess: 'Sync Success',
+    syncPending: 'Pending Sync',
+    syncCompleted: 'Synced',
+    syncNotSynced: 'Not Synced',
+    uploading: 'Uploading...',
+    downloading: 'Downloading...',
+    resetSyncState: 'Reset Sync State',
+    resetSyncConfirm: 'Sync seems stuck, do you want to reset the sync state?',
+    reset: 'Reset',
+    justNow: 'Just now',
+    minutesAgo: ' minutes ago',
+    hoursAgo: ' hours ago',
+    daysAgo: ' days ago',
+    
     // Me page
     messageCenter: 'Message Center',
     about: 'About',
@@ -532,7 +550,11 @@ export const translations = {
 };
 
 export const getTranslation = (key: keyof typeof translations.zh, lang: Language): string => {
-  return translations[lang][key] || translations.zh[key] || key;
+  const langTranslations = translations[lang] as typeof translations.zh;
+  const zhTranslations = translations.zh;
+  
+  // 如果当前语言的翻译存在，使用它；否则使用中文翻译；最后使用 key 本身
+  return langTranslations[key] || zhTranslations[key] || key;
 };
 
 
