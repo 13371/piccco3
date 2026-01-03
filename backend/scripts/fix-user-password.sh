@@ -60,40 +60,57 @@ echo "正在生成 bcrypt 哈希..."
 # 使用项目中的 Node.js 脚本生成 bcrypt 哈希
 cd "$PROJECT_DIR"
 
+# 检查并安装 bcrypt（如果需要）
+if [ ! -d "node_modules/bcrypt" ]; then
+    echo "正在安装 bcrypt 模块..."
+    npm install bcrypt 2>&1 | tail -5
+fi
+
+# 尝试多种方法生成哈希
+BCRYPT_HASH=""
+
+# 方法1: 使用独立脚本
 if [ -f "scripts/generate-bcrypt-hash.js" ]; then
-    # 使用项目脚本
-    BCRYPT_HASH=$(node scripts/generate-bcrypt-hash.js "$NEW_PASSWORD" 2>&1)
-elif [ -d "node_modules/bcrypt" ]; then
-    # 直接使用 node_modules 中的 bcrypt
-    BCRYPT_HASH=$(node -e "
-const bcrypt = require('./node_modules/bcrypt');
-const password = process.argv[1];
-bcrypt.hash(password, 10, (err, hash) => {
-  if (err) {
-    console.error('生成哈希失败:', err);
-    process.exit(1);
-  }
-  console.log(hash);
-});
-" "$NEW_PASSWORD" 2>&1)
-else
-    echo "❌ 未找到 bcrypt 模块"
-    echo "正在安装 bcrypt..."
-    npm install bcrypt >/dev/null 2>&1
-    if [ -f "scripts/generate-bcrypt-hash.js" ]; then
-        BCRYPT_HASH=$(node scripts/generate-bcrypt-hash.js "$NEW_PASSWORD" 2>&1)
+    BCRYPT_HASH=$(cd "$PROJECT_DIR" && node scripts/generate-bcrypt-hash.js "$NEW_PASSWORD" 2>&1)
+    if [ -n "$BCRYPT_HASH" ] && [ "${BCRYPT_HASH:0:4}" = "\$2a\$" ] || [ "${BCRYPT_HASH:0:4}" = "\$2b\$" ]; then
+        echo "✅ 使用方法1生成成功"
     else
-        BCRYPT_HASH=$(node -e "
-const bcrypt = require('./node_modules/bcrypt');
+        BCRYPT_HASH=""
+    fi
+fi
+
+# 方法2: 直接使用 node -e（如果方法1失败）
+if [ -z "$BCRYPT_HASH" ] && [ -d "node_modules/bcrypt" ]; then
+    BCRYPT_HASH=$(cd "$PROJECT_DIR" && node -e "
+const path = require('path');
+const bcrypt = require(path.join(process.cwd(), 'node_modules', 'bcrypt'));
 const password = process.argv[1];
 bcrypt.hash(password, 10, (err, hash) => {
   if (err) {
-    console.error('生成哈希失败:', err);
+    console.error('ERROR:', err.message);
     process.exit(1);
   }
   console.log(hash);
 });
 " "$NEW_PASSWORD" 2>&1)
+    
+    if echo "$BCRYPT_HASH" | grep -q "ERROR"; then
+        BCRYPT_HASH=""
+    elif [ -n "$BCRYPT_HASH" ] && ([ "${BCRYPT_HASH:0:4}" = "\$2a\$" ] || [ "${BCRYPT_HASH:0:4}" = "\$2b\$" ]); then
+        echo "✅ 使用方法2生成成功"
+    else
+        BCRYPT_HASH=""
+    fi
+fi
+
+# 方法3: 使用 npx（如果前两种方法都失败）
+if [ -z "$BCRYPT_HASH" ] && command -v npx >/dev/null 2>&1; then
+    echo "尝试使用 npx..."
+    BCRYPT_HASH=$(cd "$PROJECT_DIR" && npx -y bcrypt-cli hash "$NEW_PASSWORD" 2>&1 | tail -1)
+    if [ -n "$BCRYPT_HASH" ] && ([ "${BCRYPT_HASH:0:4}" = "\$2a\$" ] || [ "${BCRYPT_HASH:0:4}" = "\$2b\$" ]); then
+        echo "✅ 使用方法3生成成功"
+    else
+        BCRYPT_HASH=""
     fi
 fi
 
