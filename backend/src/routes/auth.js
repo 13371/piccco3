@@ -252,7 +252,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const user = await userStoreAdapter.findUserByEmail(email);
     if (!user) {
       // 不泄露用户是否存在的信息，统一错误消息
-      logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
+      logger.warn('auth', `登录失败: 用户不存在 ${email.substring(0, 3)}***`);
       return res.status(400).json({ message: '邮箱或密码错误' });
     }
 
@@ -264,10 +264,17 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
+    // 记录密码验证开始
+    logger.debug('auth', `开始验证密码: ${email.substring(0, 3)}***`, {
+      hasPassword: !!user.password,
+      passwordPrefix: user.password ? user.password.substring(0, 10) : 'none',
+      passwordLength: user.password ? user.password.length : 0,
+    });
+
     const ok = await userStoreAdapter.verifyPassword(user, password);
     if (!ok) {
       // 不泄露密码错误信息，统一错误消息
-      logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
+      logger.warn('auth', `登录失败: 密码验证失败 ${email.substring(0, 3)}***`);
       return res.status(400).json({ message: '邮箱或密码错误' });
     }
 
