@@ -151,3 +151,4 @@ tail -f /www/server/pgsql/data/log/postgresql-*.log | grep "duration:"
 
 **可选优化**：安装 PgBouncer 以进一步优化连接管理（限制连接数到 50 个）。
 
+

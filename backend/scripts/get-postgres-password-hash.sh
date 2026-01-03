@@ -119,3 +119,4 @@ else
     echo "     $PSQL -h 127.0.0.1 -p 5432 -U postgres -d postgres -c \"ALTER USER $DB_USER WITH PASSWORD 'your_password';\""
 fi
 
+

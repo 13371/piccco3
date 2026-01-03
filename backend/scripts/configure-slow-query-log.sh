@@ -137,3 +137,4 @@ echo "      tail -f /www/server/pgsql/logs/postgresql-*.log | grep duration"
 echo ""
 
 
+

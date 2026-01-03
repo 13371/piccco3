@@ -134,3 +134,4 @@ echo "   2. 重启应用："
 echo "      pm2 restart piccco-backend --update-env"
 echo ""
 
+

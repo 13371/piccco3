@@ -43,3 +43,4 @@ GRANT USAGE, SELECT ON SEQUENCE migration_status_id_seq TO :app_user;
 -- 例如：GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE users TO postgres;
 
 
+
