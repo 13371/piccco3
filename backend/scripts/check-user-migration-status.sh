@@ -89,12 +89,12 @@ if [ -n "$DB_USER_COUNT" ] && [ "$DB_USER_COUNT" != "" ]; then
     
     if [ "$DB_USER_COUNT" -gt 0 ]; then
         echo "   数据库中的用户："
-        $PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -c "
+        $PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
         SELECT id, email, username, created_at 
         FROM users 
         ORDER BY created_at DESC 
         LIMIT 5;
-        " 2>/dev/null | grep -v "^$" | grep -v "row" | grep -v "---" | grep -v "id\|email\|username\|created_at" | while read line; do
+        " 2>/dev/null | while read line; do
             if [ -n "$line" ]; then
                 echo "     - $line"
             fi
