@@ -28,7 +28,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // 获取当前用户的消息（需要认证）
-router.get('/messages', authenticateToken, (req, res) => {
+router.get('/messages', authenticateToken, async (req, res) => {
   try {
     // 从 JWT token 中获取用户ID，而不是从 query 参数
     const userId = req.user.id;
@@ -51,7 +51,7 @@ router.get('/messages', authenticateToken, (req, res) => {
 });
 
 // 标记消息为已读（需要认证，且只能标记自己的消息）
-router.post('/messages/:messageId/read', authenticateToken, (req, res) => {
+router.post('/messages/:messageId/read', authenticateToken, async (req, res) => {
   try {
     const { messageId } = req.params;
     const userId = req.user.id;
