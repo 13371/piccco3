@@ -47,24 +47,47 @@ else
     PSQL="psql"
 fi
 
-# 设置密码
-export PGPASSWORD="$DB_PASSWORD"
+# 对于管理操作，使用 postgres 用户直接连接 PostgreSQL（端口 5432）
+# 而不是通过 PgBouncer（端口 6432）
+ADMIN_DB_PORT="5432"
+ADMIN_DB_USER="postgres"
+
+# 尝试获取 postgres 用户密码（如果 .env 中有）
+POSTGRES_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' ' | tr -d '"' | tr -d "'" || echo "")
+
+# 如果使用 PgBouncer 端口，切换到直接 PostgreSQL 连接
+if [ "$DB_PORT" = "6432" ]; then
+    echo "   ⚠️  检测到 PgBouncer 端口 (6432)，切换到直接 PostgreSQL 连接 (5432)"
+    ADMIN_DB_PORT="5432"
+fi
+
+# 设置密码（优先使用 POSTGRES_PASSWORD，否则使用 DB_PASSWORD）
+if [ -n "$POSTGRES_PASSWORD" ]; then
+    export PGPASSWORD="$POSTGRES_PASSWORD"
+else
+    export PGPASSWORD="$DB_PASSWORD"
+fi
 
 # 检查数据库连接
 echo "1️⃣  检查数据库连接..."
-if $PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+echo "   使用: $ADMIN_DB_USER@$DB_HOST:$ADMIN_DB_PORT"
+if $PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
     echo "   ✅ 数据库连接正常"
 else
     echo "   ❌ 数据库连接失败"
     echo "   尝试直接连接..."
-    $PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -c "SELECT 1;"
+    $PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -c "SELECT 1;"
+    echo ""
+    echo "   💡 提示：如果密码错误，请："
+    echo "   1. 检查 .env 中的 POSTGRES_PASSWORD"
+    echo "   2. 或者手动输入 postgres 用户密码"
     exit 1
 fi
 echo ""
 
 # 检查所有用户
 echo "2️⃣  检查所有用户..."
-ALL_USERS=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+ALL_USERS=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
 SELECT email, username, created_at 
 FROM users 
 ORDER BY created_at DESC 
@@ -86,7 +109,7 @@ echo ""
 
 # 检查特定用户
 echo "3️⃣  检查用户: $EMAIL"
-USER_INFO=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+USER_INFO=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
 SELECT 
     email, 
     username, 
@@ -118,7 +141,7 @@ echo ""
 
 # 尝试模糊匹配
 echo "4️⃣  尝试模糊匹配邮箱..."
-FUZZY_MATCH=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+FUZZY_MATCH=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
 SELECT email, username 
 FROM users 
 WHERE email LIKE '%$EMAIL%' OR email LIKE '%zq%' 

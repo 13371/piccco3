@@ -60,9 +60,27 @@ else
     exit 1
 fi
 
-export PGPASSWORD="$DB_PASSWORD"
+# 对于管理操作，使用 postgres 用户直接连接 PostgreSQL（端口 5432）
+ADMIN_DB_PORT="5432"
+ADMIN_DB_USER="postgres"
 
-echo "   数据库: $DB_NAME@$DB_HOST:$DB_PORT"
+# 如果使用 PgBouncer 端口，切换到直接 PostgreSQL 连接
+if [ "$DB_PORT" = "6432" ]; then
+    echo "   ⚠️  检测到 PgBouncer 端口 (6432)，切换到直接 PostgreSQL 连接 (5432)"
+    ADMIN_DB_PORT="5432"
+fi
+
+# 尝试获取 postgres 用户密码（如果 .env 中有）
+POSTGRES_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2 | tr -d ' ' | tr -d '"' | tr -d "'" || echo "")
+
+# 设置密码（优先使用 POSTGRES_PASSWORD，否则使用 DB_PASSWORD）
+if [ -n "$POSTGRES_PASSWORD" ]; then
+    export PGPASSWORD="$POSTGRES_PASSWORD"
+else
+    export PGPASSWORD="$DB_PASSWORD"
+fi
+
+echo "   数据库: $DB_NAME@$DB_HOST:$ADMIN_DB_PORT (管理连接)"
 echo ""
 
 # 检查 psql
@@ -74,7 +92,7 @@ fi
 
 # 3. 检查用户是否存在
 echo "3️⃣  检查用户是否存在: $EMAIL"
-USER_EXISTS=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+USER_EXISTS=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
 SELECT COUNT(*) FROM users WHERE email = '$EMAIL';
 " 2>&1 | tr -d ' ')
 
@@ -82,7 +100,7 @@ if [ -z "$USER_EXISTS" ] || [ "$USER_EXISTS" != "1" ]; then
     echo "   ❌ 用户不存在: $EMAIL"
     echo ""
     echo "   正在查找所有用户..."
-    ALL_USERS=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+    ALL_USERS=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
     SELECT email, username FROM users ORDER BY created_at DESC LIMIT 10;
     " 2>&1)
     if [ -n "$ALL_USERS" ]; then
@@ -100,7 +118,7 @@ echo ""
 
 # 4. 检查密码格式
 echo "4️⃣  检查密码格式..."
-PASSWORD_INFO=$($PSQL -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$DB_NAME" -t -c "
+PASSWORD_INFO=$($PSQL -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -t -c "
 SELECT 
     CASE 
         WHEN password LIKE '\$2a\$%' OR password LIKE '\$2b\$%' OR password LIKE '\$2y\$%' THEN 'bcrypt'
