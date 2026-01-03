@@ -22,6 +22,19 @@ fi
 
 DB_NAME=${DB_NAME:-piccco}
 
+# 验证数据库是否存在
+echo "🔍 验证数据库连接..."
+if ! $PSQL_CMD -U postgres -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+    echo "⚠️  警告: 数据库 '$DB_NAME' 可能不存在"
+    echo ""
+    echo "可用的数据库列表："
+    $PSQL_CMD -U postgres -lqt | cut -d \| -f 1 | grep -v "^\s*$" | grep -v "template" | grep -v "postgres"
+    echo ""
+    echo "请检查 .env 文件中的 DB_NAME 配置，或手动指定数据库名称："
+    echo "  DB_NAME=your_database_name bash scripts/check-indexes.sh"
+    exit 1
+fi
+
 # 检查 psql
 if [ -f "/www/server/pgsql/bin/psql" ]; then
     PSQL="/www/server/pgsql/bin/psql"
