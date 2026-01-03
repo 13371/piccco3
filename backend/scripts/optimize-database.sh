@@ -34,23 +34,32 @@ DB_USER=${DB_USER:-piccco_user}
 # 检查 psql
 if [ -f "/www/server/pgsql/bin/psql" ]; then
     PSQL="/www/server/pgsql/bin/psql"
-    export PGPASSWORD="${DB_PASSWORD:-}"
 elif command -v psql >/dev/null 2>&1; then
     PSQL="psql"
-    export PGPASSWORD="${DB_PASSWORD:-}"
 else
     echo "❌ 错误: 未找到 psql 命令"
     exit 1
+fi
+
+# 设置密码（如果需要）
+if [ -n "$DB_PASSWORD" ]; then
+    export PGPASSWORD="$DB_PASSWORD"
 fi
 
 echo "📋 数据库: $DB_NAME"
 echo "📋 用户: $DB_USER"
 echo ""
 
-# 1. 应用索引优化
+# 1. 应用索引优化（需要使用 postgres 超级用户）
 echo "1️⃣ 应用索引优化..."
 if [ -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql" ]; then
-    $PSQL -U "$DB_USER" -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
+    # 使用 postgres 超级用户执行索引创建
+    if [ -f "/www/server/pgsql/bin/psql" ]; then
+        POSTGRES_PSQL="/www/server/pgsql/bin/psql"
+    else
+        POSTGRES_PSQL="psql"
+    fi
+    $POSTGRES_PSQL -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
     echo "✅ 索引优化完成"
 else
     echo "⚠️  未找到索引优化脚本: migrations/003_optimize_indexes.sql"
