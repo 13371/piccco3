@@ -32,6 +32,9 @@ else
     exit 1
 fi
 
+# 使用 TCP/IP 连接（避免 socket 连接问题）
+PSQL_CMD="$PSQL -h 127.0.0.1 -p 5432"
+
 echo "📋 数据库: $DB_NAME"
 echo ""
 
@@ -63,7 +66,7 @@ declare -A REQUIRED_INDEXES=(
 echo "📊 当前索引列表："
 echo ""
 
-$PSQL -U postgres -d "$DB_NAME" <<EOF
+$PSQL_CMD -U postgres -d "$DB_NAME" <<EOF
 SELECT 
     tablename,
     indexname,
@@ -84,7 +87,7 @@ for key in "${!REQUIRED_INDEXES[@]}"; do
     table=$(echo "$key" | cut -d'.' -f1)
     index=$(echo "$key" | cut -d'.' -f2)
     
-    exists=$($PSQL -U postgres -d "$DB_NAME" -t -c "
+    exists=$($PSQL_CMD -U postgres -d "$DB_NAME" -t -c "
         SELECT COUNT(*) 
         FROM pg_indexes 
         WHERE schemaname = 'public' 

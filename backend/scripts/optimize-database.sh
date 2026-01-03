@@ -41,6 +41,9 @@ else
     exit 1
 fi
 
+# 使用 TCP/IP 连接（避免 socket 连接问题）
+PSQL_CMD="$PSQL -h 127.0.0.1 -p 5432"
+
 # 设置密码（如果需要）
 if [ -n "$DB_PASSWORD" ]; then
     export PGPASSWORD="$DB_PASSWORD"
@@ -59,7 +62,7 @@ if [ -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql" ]; then
     else
         POSTGRES_PSQL="psql"
     fi
-    $POSTGRES_PSQL -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
+    $POSTGRES_PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
     echo "✅ 索引优化完成"
 else
     echo "⚠️  未找到索引优化脚本: migrations/003_optimize_indexes.sql"
@@ -69,7 +72,7 @@ echo ""
 
 # 2. 分析表统计信息
 echo "2️⃣ 更新表统计信息..."
-$PSQL -U "$DB_USER" -d "$DB_NAME" <<EOF
+$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
 ANALYZE users;
 ANALYZE folders;
 ANALYZE notes;
@@ -85,7 +88,7 @@ echo ""
 # 3. 检查全表扫描
 echo "3️⃣ 检查全表扫描..."
 echo "检查 notes 表..."
-$PSQL -U "$DB_USER" -d "$DB_NAME" <<EOF
+$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
 EXPLAIN ANALYZE
 SELECT * FROM notes 
 WHERE user_id = 'test_user_id' 
@@ -95,7 +98,7 @@ EOF
 
 echo ""
 echo "检查 users 表..."
-$PSQL -U "$DB_USER" -d "$DB_NAME" <<EOF
+$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
 EXPLAIN ANALYZE
 SELECT * FROM users 
 WHERE email = 'test@example.com';
@@ -103,7 +106,7 @@ EOF
 
 echo ""
 echo "检查 logs 表..."
-$PSQL -U "$DB_USER" -d "$DB_NAME" <<EOF
+$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
 EXPLAIN ANALYZE
 SELECT * FROM logs 
 ORDER BY timestamp DESC 
@@ -114,7 +117,7 @@ echo ""
 
 # 4. 执行 VACUUM ANALYZE
 echo "4️⃣ 执行 VACUUM ANALYZE（清理垃圾数据）..."
-$PSQL -U "$DB_USER" -d "$DB_NAME" <<EOF
+$PSQL_CMD -U "$DB_USER" -d "$DB_NAME" <<EOF
 VACUUM ANALYZE users;
 VACUUM ANALYZE folders;
 VACUUM ANALYZE notes;
