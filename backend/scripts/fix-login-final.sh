@@ -193,7 +193,7 @@ echo ""
 
 # 7. 测试连接
 echo "7️⃣  测试数据库连接..."
-if PGPASSWORD="$PGPASSWORD" /www/server/pgsql/bin/psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -d piccco -c "SELECT 1;" >/dev/null 2>&1; then
+if PGPASSWORD="$PGPASSWORD" /www/server/pgsql/bin/psql -h "$DB_HOST" -p "$ADMIN_DB_PORT" -U "$ADMIN_DB_USER" -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
     echo "   ✅ 数据库连接正常"
 else
     echo "   ❌ 数据库连接失败"
