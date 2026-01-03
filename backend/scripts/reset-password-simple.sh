@@ -85,7 +85,7 @@ try {
   }
 }
 
-const password = process.argv[1];
+const password = process.argv[2]; // process.argv[0]=node, [1]=script, [2]=password
 bcrypt.hash(password, 10, (err, hash) => {
   if (err) {
     console.error('ERROR:', err.message);
