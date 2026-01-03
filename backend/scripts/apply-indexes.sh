@@ -44,8 +44,10 @@ fi
 
 # 验证数据库连接
 echo "验证数据库连接..."
-if ! $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+CONNECTION_TEST=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" 2>&1)
+if [ $? -ne 0 ]; then
     echo "❌ 错误: 无法连接到数据库 '$DB_NAME'"
+    echo "错误信息: $CONNECTION_TEST"
     echo ""
     echo "请先运行测试脚本检查连接："
     echo "  bash scripts/test-db-connection.sh"

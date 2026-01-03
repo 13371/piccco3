@@ -54,18 +54,17 @@ fi
 
 echo ""
 echo "2. 检查数据库是否存在..."
-# 获取数据库列表并清理（去除空格和制表符）
-DB_LIST=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v "^$" | grep -v "template" | grep -v "^postgres$")
-
 # 先尝试直接连接（最可靠的方法）
 echo "尝试直接连接数据库 '$DB_NAME'..."
-if $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+CONNECTION_TEST=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" 2>&1)
+if [ $? -eq 0 ]; then
     echo "✅ 数据库 '$DB_NAME' 连接成功"
 else
     echo "❌ 数据库 '$DB_NAME' 无法连接"
+    echo "错误信息: $CONNECTION_TEST"
     echo ""
     echo "可用的数据库列表："
-    echo "$DB_LIST"
+    $PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v "^$" | grep -v "template" | grep -v "^postgres$"
     echo ""
     echo "提示：如果数据库名称不匹配，请检查 .env 文件中的 DB_NAME 配置"
     exit 1
