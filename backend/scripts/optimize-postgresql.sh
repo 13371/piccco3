@@ -106,7 +106,34 @@ echo "wal_compression = on" | sudo tee -a "$PG_CONF"
 
 echo "✅ 配置已更新"
 echo "🔄 重启 PostgreSQL..."
-sudo systemctl restart postgresql
+
+# 尝试多种方式重启 PostgreSQL
+PG_RESTARTED=false
+
+# 方法1: 尝试标准服务名
+if systemctl list-units --type=service | grep -q "postgresql.service"; then
+    sudo systemctl restart postgresql && PG_RESTARTED=true
+fi
+
+# 方法2: 尝试带版本号的服务名
+if [ "$PG_RESTARTED" = false ]; then
+    PG_SERVICE=$(systemctl list-units --type=service | grep -i postgresql | head -1 | awk '{print $1}')
+    if [ -n "$PG_SERVICE" ]; then
+        sudo systemctl restart "$PG_SERVICE" && PG_RESTARTED=true
+    fi
+fi
+
+# 方法3: 如果是宝塔面板，可能需要通过宝塔命令重启
+if [ "$PG_RESTARTED" = false ] && [ -f "/www/server/pgsql/data/postgresql.conf" ]; then
+    echo "⚠️  无法通过 systemctl 重启 PostgreSQL"
+    echo "   请通过宝塔面板手动重启 PostgreSQL 服务"
+    echo "   或者使用以下命令："
+    echo "   /etc/init.d/postgresql restart"
+    echo "   或"
+    echo "   /www/server/pgsql/bin/pg_ctl restart -D /www/server/pgsql/data"
+else
+    echo "✅ PostgreSQL 服务已重启"
+fi
 
 echo "⏳ 等待 PostgreSQL 启动..."
 sleep 5
