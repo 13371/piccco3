@@ -57,10 +57,16 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 echo "正在生成 bcrypt 哈希..."
-# 创建临时脚本文件来生成 bcrypt 哈希（使用项目的 node_modules）
-TMP_SCRIPT=$(mktemp)
-cat > "$TMP_SCRIPT" << 'NODE_SCRIPT'
-const bcrypt = require('bcrypt');
+# 使用项目中的 Node.js 脚本生成 bcrypt 哈希
+cd "$PROJECT_DIR"
+
+if [ -f "scripts/generate-bcrypt-hash.js" ]; then
+    # 使用项目脚本
+    BCRYPT_HASH=$(node scripts/generate-bcrypt-hash.js "$NEW_PASSWORD" 2>&1)
+elif [ -d "node_modules/bcrypt" ]; then
+    # 直接使用 node_modules 中的 bcrypt
+    BCRYPT_HASH=$(node -e "
+const bcrypt = require('./node_modules/bcrypt');
 const password = process.argv[1];
 bcrypt.hash(password, 10, (err, hash) => {
   if (err) {
@@ -69,35 +75,25 @@ bcrypt.hash(password, 10, (err, hash) => {
   }
   console.log(hash);
 });
-NODE_SCRIPT
-
-# 使用项目的 node_modules（设置 NODE_PATH）
-cd "$PROJECT_DIR"
-if [ -d "node_modules/bcrypt" ]; then
-    BCRYPT_HASH=$(NODE_PATH="$PROJECT_DIR/node_modules:$NODE_PATH" node "$TMP_SCRIPT" "$NEW_PASSWORD" 2>&1)
-    rm -f "$TMP_SCRIPT"
-elif [ -f "package.json" ]; then
-    # 尝试使用 npm 运行（如果项目有 package.json）
-    echo "尝试安装 bcrypt（如果需要）..."
-    npm list bcrypt >/dev/null 2>&1 || npm install bcrypt >/dev/null 2>&1
-    BCRYPT_HASH=$(NODE_PATH="$PROJECT_DIR/node_modules:$NODE_PATH" node "$TMP_SCRIPT" "$NEW_PASSWORD" 2>&1)
-    rm -f "$TMP_SCRIPT"
-else
-    rm -f "$TMP_SCRIPT"
-    echo "❌ 未找到 bcrypt 模块，尝试使用 Python..."
-    # 尝试使用 Python bcrypt（如果可用）
-    if command -v python3 >/dev/null 2>&1; then
-        BCRYPT_HASH=$(python3 -c "
-import bcrypt
-import sys
-password = sys.argv[1]
-hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=10))
-print(hashed.decode('utf-8'))
 " "$NEW_PASSWORD" 2>&1)
+else
+    echo "❌ 未找到 bcrypt 模块"
+    echo "正在安装 bcrypt..."
+    npm install bcrypt >/dev/null 2>&1
+    if [ -f "scripts/generate-bcrypt-hash.js" ]; then
+        BCRYPT_HASH=$(node scripts/generate-bcrypt-hash.js "$NEW_PASSWORD" 2>&1)
     else
-        echo "❌ 未找到 Python，无法生成 bcrypt 哈希"
-        echo "请手动安装 bcrypt: cd $PROJECT_DIR && npm install bcrypt"
-        exit 1
+        BCRYPT_HASH=$(node -e "
+const bcrypt = require('./node_modules/bcrypt');
+const password = process.argv[1];
+bcrypt.hash(password, 10, (err, hash) => {
+  if (err) {
+    console.error('生成哈希失败:', err);
+    process.exit(1);
+  }
+  console.log(hash);
+});
+" "$NEW_PASSWORD" 2>&1)
     fi
 fi
 
