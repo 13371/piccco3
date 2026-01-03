@@ -494,12 +494,36 @@ export const useDataStore = create<DataState>()(
             u.folderId === id && !u.isDeleted ? { ...u, isDeleted: true, deletedAt: now, updatedAt: now } : u
           );
           
+          // 调试：验证删除状态
+          const deletedFolder = updatedFolders.find(f => f.id === id);
+          logger.log('[dataStore] 删除文件夹后本地状态:', {
+            folderId: id,
+            folderName: folder.name,
+            isDeleted: deletedFolder?.isDeleted,
+            deletedAt: deletedFolder?.deletedAt,
+            updatedAt: deletedFolder?.updatedAt,
+            deletedNotesCount: updatedNotes.filter(n => n.isDeleted && n.deletedAt === now).length,
+            deletedUrlsCount: updatedUrls.filter(u => u.isDeleted && u.deletedAt === now).length,
+          });
+          
           return {
             folders: updatedFolders,
             notes: updatedNotes,
             urls: updatedUrls,
           };
         });
+        
+        // 验证删除状态已保存
+        setTimeout(() => {
+          const state = get();
+          const deletedFolder = state.folders.find(f => f.id === id);
+          logger.log('[dataStore] 删除后验证状态:', {
+            folderId: id,
+            isDeleted: deletedFolder?.isDeleted,
+            deletedAt: deletedFolder?.deletedAt,
+            exists: !!deletedFolder,
+          });
+        }, 100);
         
         logger.log('[dataStore] 本地删除完成，尝试同步到后端');
         

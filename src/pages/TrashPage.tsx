@@ -30,7 +30,17 @@ const TrashPage = () => {
   useEffect(() => {
     // 自动清理过期文件
     cleanExpiredTrash();
-  }, []);
+    
+    // 调试：检查数据
+    console.log('[TrashPage] useEffect - 检查数据:', {
+      foldersCount: folders.length,
+      notesCount: notes.length,
+      urlsCount: urls.length,
+      allFolders: folders.map(f => ({ id: f.id, name: f.name, isDeleted: f.isDeleted, deletedAt: f.deletedAt })),
+      allNotes: notes.map(n => ({ id: n.id, isDeleted: n.isDeleted, deletedAt: n.deletedAt })),
+      allUrls: urls.map(u => ({ id: u.id, title: u.title, isDeleted: u.isDeleted, deletedAt: u.deletedAt })),
+    });
+  }, [folders, notes, urls, cleanExpiredTrash]);
 
   // 基于 isDeleted 字段构建回收站列表
   const trashItems = useMemo<TrashItem[]>(() => {
