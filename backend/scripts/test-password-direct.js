@@ -24,12 +24,16 @@ if (!email || !password) {
 }
 
 // 数据库配置（使用 postgres 用户直接连接）
+// 对于管理操作，使用 postgres 用户和端口 5432（不是 PgBouncer 的 6432）
+const dbPort = process.env.DB_PORT === '6432' ? '5432' : (process.env.DB_PORT || '5432');
+const dbPassword = process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '';
+
 const pool = new Pool({
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
+    port: parseInt(dbPort, 10),
     database: process.env.DB_NAME || 'piccco',
     user: 'postgres',
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
+    password: dbPassword,
 });
 
 async function testPassword() {
