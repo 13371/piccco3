@@ -42,3 +42,4 @@ GRANT USAGE, SELECT ON SEQUENCE migration_status_id_seq TO :app_user;
 -- 注意：如果上面的 \set 命令在宝塔面板中不支持，请直接替换 :app_user 为实际用户名
 -- 例如：GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE users TO postgres;
 
+

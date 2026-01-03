@@ -136,3 +136,4 @@ echo "   3. 查看慢查询日志："
 echo "      tail -f /www/server/pgsql/logs/postgresql-*.log | grep duration"
 echo ""
 
+
