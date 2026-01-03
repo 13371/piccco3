@@ -262,13 +262,40 @@ async function updateUser(userId, updates) {
  */
 async function verifyPassword(user, password) {
   if (!user || !user.password || !password) {
+    logger.warn('userDao', 'verifyPassword: 缺少必要参数', {
+      hasUser: !!user,
+      hasPassword: !!user?.password,
+      hasInputPassword: !!password,
+    });
+    return false;
+  }
+  
+  // 检查密码格式是否为 bcrypt
+  const passwordHash = user.password;
+  if (!passwordHash.startsWith('$2a$') && !passwordHash.startsWith('$2b$') && !passwordHash.startsWith('$2y$')) {
+    logger.error('userDao', '密码格式不正确，不是 bcrypt 哈希', {
+      email: user.email,
+      passwordPrefix: passwordHash.substring(0, 10),
+      passwordLength: passwordHash.length,
+    });
     return false;
   }
   
   try {
-    return await bcrypt.compare(password, user.password);
+    const result = await bcrypt.compare(password, passwordHash);
+    if (!result) {
+      logger.debug('userDao', '密码验证失败（密码不匹配）', {
+        email: user.email,
+      });
+    }
+    return result;
   } catch (error) {
-    logger.error('userDao', '密码验证失败', error);
+    logger.error('userDao', '密码验证异常', {
+      error: error.message,
+      stack: error.stack,
+      email: user.email,
+      passwordHashPrefix: passwordHash.substring(0, 10),
+    });
     return false;
   }
 }

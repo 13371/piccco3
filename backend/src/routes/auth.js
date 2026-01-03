@@ -125,12 +125,18 @@ router.post('/send-code', sendCodeLimiter, async (req, res) => {
     logger.info('auth', `验证码已发送到 ${email}，key=${emailKey}`);
     res.json({ message: '验证码已发送到您的邮箱，请查收' });
   } catch (e) {
-    logger.error('auth', 'send-code error:', e);
+    logger.error('auth', 'send-code error:', {
+      message: e.message,
+      stack: e.stack,
+      name: e.name,
+      email: email,
+    });
     const errorMessage = e.message || '发送验证码失败，请稍后重试';
+    const isSmtpError = errorMessage.includes('SMTP') || errorMessage.includes('邮件服务') || errorMessage.includes('未配置');
     res.status(500).json({ 
-      message: errorMessage.includes('SMTP') 
+      message: isSmtpError 
         ? '邮件服务未配置，请联系管理员' 
-        : errorMessage 
+        : '发送验证码失败，请稍后重试'
     });
   }
 });
