@@ -56,12 +56,22 @@ echo ""
 echo "2. 检查数据库是否存在..."
 # 先尝试直接连接（最可靠的方法）
 echo "尝试直接连接数据库 '$DB_NAME'..."
-CONNECTION_TEST=$($PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" 2>&1)
-if [ $? -eq 0 ]; then
+
+# 直接执行命令并捕获退出码
+$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ 数据库 '$DB_NAME' 连接成功"
 else
-    echo "❌ 数据库 '$DB_NAME' 无法连接"
-    echo "错误信息: $CONNECTION_TEST"
+    echo "❌ 数据库 '$DB_NAME' 无法连接（退出码: $EXIT_CODE）"
+    echo ""
+    echo "调试信息："
+    echo "  DB_NAME 变量值: [$DB_NAME]"
+    echo "  PSQL 路径: $PSQL"
+    echo ""
+    echo "尝试手动连接测试："
+    $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT 1;" 2>&1 | head -3
     echo ""
     echo "可用的数据库列表："
     $PSQL -h 127.0.0.1 -p 5432 -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v "^$" | grep -v "template" | grep -v "^postgres$"
