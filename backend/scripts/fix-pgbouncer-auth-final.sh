@@ -72,11 +72,16 @@ if [ -f "/etc/pgbouncer/userlist.txt" ]; then
     echo "✅ 已备份"
 fi
 
-# 4. 创建用户认证文件
+# 4. 创建用户认证文件（使用临时文件避免变量扩展问题）
 echo ""
 echo "4. 创建用户认证文件..."
-sudo bash -c "printf '\"%s\" \"%s\"\n' '$DB_USER' '$MD5_HASH' > /etc/pgbouncer/userlist.txt"
-sudo bash -c "printf '\"%s\" \"%s\"\n' 'postgres' 'md5e8a48653851e28c69d0506508fb27fc5' >> /etc/pgbouncer/userlist.txt"
+TMP_FILE=$(mktemp)
+cat > "$TMP_FILE" <<EOF
+"$DB_USER" "$MD5_HASH"
+"postgres" "md5e8a48653851e28c69d0506508fb27fc5"
+EOF
+sudo cp "$TMP_FILE" /etc/pgbouncer/userlist.txt
+rm -f "$TMP_FILE"
 
 echo "✅ 用户认证文件已创建"
 echo ""
@@ -128,4 +133,5 @@ echo "      DB_PORT=6432"
 echo ""
 echo "   2. 重启应用："
 echo "      pm2 restart piccco-backend --update-env"
+
 
