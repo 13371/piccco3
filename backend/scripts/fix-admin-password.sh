@@ -57,9 +57,37 @@ fi
 
 # 生成 bcrypt 哈希
 echo "正在生成 bcrypt 哈希..."
+cd "$PROJECT_DIR"
+
+# 检查并安装 bcrypt（如果需要）
+if [ ! -d "node_modules/bcrypt" ]; then
+    echo "正在安装 bcrypt 模块..."
+    npm install bcrypt 2>&1 | tail -5
+fi
+
 TMP_HASH_SCRIPT=$(mktemp)
 cat > "$TMP_HASH_SCRIPT" << 'NODE_EOF'
-const bcrypt = require('bcrypt');
+const path = require('path');
+const fs = require('fs');
+
+// 尝试多种方式加载 bcrypt
+let bcrypt;
+const projectRoot = process.cwd();
+
+// 方法1: 从 node_modules 加载
+try {
+  bcrypt = require(path.join(projectRoot, 'node_modules', 'bcrypt'));
+} catch (e) {
+  // 方法2: 直接 require
+  try {
+    bcrypt = require('bcrypt');
+  } catch (e2) {
+    console.error('ERROR: Cannot find bcrypt module');
+    console.error('Please run: npm install bcrypt');
+    process.exit(1);
+  }
+}
+
 const password = process.argv[2]; // process.argv[0]=node, [1]=script, [2]=password
 bcrypt.hash(password, 10, (err, hash) => {
   if (err) {
