@@ -44,25 +44,14 @@ fi
 
 # 使用 postgres 超级用户执行
 echo "执行索引优化脚本..."
-$PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"
-
-if [ $? -eq 0 ]; then
+if $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -f "$PROJECT_DIR/migrations/003_optimize_indexes.sql"; then
     echo ""
     echo "✅ 索引优化完成！"
     echo ""
     echo "🔍 验证索引..."
     
-    # 验证索引是否创建成功
-    $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" <<EOF
-SELECT 
-    schemaname,
-    tablename,
-    indexname
-FROM pg_indexes
-WHERE schemaname = 'public'
-  AND tablename IN ('users', 'notes', 'folders', 'messages', 'logs', 'urls')
-ORDER BY tablename, indexname;
-EOF
+    # 验证索引是否创建成功（使用 -c 参数避免 heredoc 问题）
+    $PSQL -h 127.0.0.1 -p 5432 -U postgres -d "$DB_NAME" -c "SELECT schemaname, tablename, indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename IN ('users', 'notes', 'folders', 'messages', 'logs', 'urls') ORDER BY tablename, indexname;"
     
     echo ""
     echo "✨ 索引优化完成！"

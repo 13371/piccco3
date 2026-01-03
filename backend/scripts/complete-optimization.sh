@@ -8,7 +8,7 @@
 # 4. 安装和配置 PgBouncer（可选）
 # 使用方法：bash scripts/complete-optimization.sh [--with-pgbouncer]
 
-set -e
+# 不使用 set -e，允许单个步骤失败后继续执行
 
 echo "🚀 开始完整数据库优化..."
 echo ""
@@ -27,7 +27,11 @@ fi
 # 1. 应用索引优化
 echo "1️⃣ 应用数据库索引优化..."
 if [ -f "$PROJECT_DIR/scripts/apply-indexes.sh" ]; then
-    bash "$PROJECT_DIR/scripts/apply-indexes.sh"
+    if bash "$PROJECT_DIR/scripts/apply-indexes.sh"; then
+        echo "✅ 索引优化完成"
+    else
+        echo "⚠️  索引优化失败，但继续执行其他优化..."
+    fi
 else
     echo "⚠️  未找到 apply-indexes.sh 脚本"
 fi
@@ -36,7 +40,11 @@ echo ""
 # 2. 运行 VACUUM ANALYZE
 echo "2️⃣ 运行 VACUUM ANALYZE（更新统计信息）..."
 if [ -f "$PROJECT_DIR/scripts/vacuum-analyze.sh" ]; then
-    bash "$PROJECT_DIR/scripts/vacuum-analyze.sh"
+    if bash "$PROJECT_DIR/scripts/vacuum-analyze.sh"; then
+        echo "✅ VACUUM ANALYZE 完成"
+    else
+        echo "⚠️  VACUUM ANALYZE 失败，但继续执行其他优化..."
+    fi
 else
     echo "⚠️  未找到 vacuum-analyze.sh 脚本"
 fi
