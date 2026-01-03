@@ -334,10 +334,10 @@ export const useUserStore = create<UserState>()(
               deletedAt: null,
             },
           ];
-          
-          // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
-          useDataStore.setState({
-            folders: defaultFolders,
+            
+            // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
+            useDataStore.setState({
+              folders: defaultFolders,
             notes: [],
             urls: [],
             trash: [],
