@@ -52,9 +52,9 @@ echo ""
 TEMP_FILE=$(mktemp)
 echo "创建临时文件: $TEMP_FILE"
 
-# 写入内容（不使用 heredoc，直接 echo）
-echo "\"$DB_USER\" \"$MD5_HASH\"" > "$TEMP_FILE"
-echo "\"postgres\" \"md5e8a48653851e28c69d0506508fb27fc5\"" >> "$TEMP_FILE"
+# 写入内容（使用 printf 确保变量正确）
+printf '"%s" "%s"\n' "$DB_USER" "$MD5_HASH" > "$TEMP_FILE"
+printf '"%s" "%s"\n' "postgres" "md5e8a48653851e28c69d0506508fb27fc5" >> "$TEMP_FILE"
 
 # 验证临时文件内容
 echo ""
