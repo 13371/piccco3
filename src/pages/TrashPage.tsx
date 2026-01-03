@@ -36,41 +36,49 @@ const TrashPage = () => {
   const trashItems = useMemo<TrashItem[]>(() => {
     const items: TrashItem[] = [];
     
+    // 调试：记录所有数据
+    const deletedFolders = folders.filter((f) => f.isDeleted && f.deletedAt);
+    const deletedNotes = notes.filter((n) => n.isDeleted && n.deletedAt);
+    const deletedUrls = urls.filter((u) => u.isDeleted && u.deletedAt);
+    
+    console.log('[TrashPage] 回收站数据统计:', {
+      totalFolders: folders.length,
+      deletedFolders: deletedFolders.length,
+      totalNotes: notes.length,
+      deletedNotes: deletedNotes.length,
+      totalUrls: urls.length,
+      deletedUrls: deletedUrls.length,
+    });
+    
     // 添加已删除的文件夹
-    folders
-      .filter((f) => f.isDeleted && f.deletedAt)
-      .forEach((folder) => {
-        items.push({
-          id: folder.id,
-          type: 'folder',
-          data: folder,
-          deletedAt: folder.deletedAt!,
-        });
+    deletedFolders.forEach((folder) => {
+      items.push({
+        id: folder.id,
+        type: 'folder',
+        data: folder,
+        deletedAt: folder.deletedAt!,
       });
+    });
     
     // 添加已删除的笔记
-    notes
-      .filter((n) => n.isDeleted && n.deletedAt)
-      .forEach((note) => {
-        items.push({
-          id: note.id,
-          type: 'note',
-          data: note,
-          deletedAt: note.deletedAt!,
-        });
+    deletedNotes.forEach((note) => {
+      items.push({
+        id: note.id,
+        type: 'note',
+        data: note,
+        deletedAt: note.deletedAt!,
       });
+    });
     
     // 添加已删除的网址
-    urls
-      .filter((u) => u.isDeleted && u.deletedAt)
-      .forEach((url) => {
-        items.push({
-          id: url.id,
-          type: 'url',
-          data: url,
-          deletedAt: url.deletedAt!,
-        });
+    deletedUrls.forEach((url) => {
+      items.push({
+        id: url.id,
+        type: 'url',
+        data: url,
+        deletedAt: url.deletedAt!,
       });
+    });
     
     // 按删除时间倒序排列（最近删除的在前）
     return items.sort((a, b) => b.deletedAt - a.deletedAt);
