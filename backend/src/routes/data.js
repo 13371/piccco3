@@ -103,15 +103,54 @@ const authenticateToken = (req, res, next) => {
  *       401:
  *         description: 未授权
  */
-// 获取用户数据（完整同步）
+// 获取用户数据（支持完整同步和增量同步）
 router.get('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
+    const lastSyncAt = req.query.lastSyncAt ? parseInt(req.query.lastSyncAt) : null;
     
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
+    // 如果提供了 lastSyncAt，尝试使用增量同步
+    if (lastSyncAt && lastSyncAt > 0) {
+      try {
+        // 检查存储适配器是否支持增量查询
+        if (userDataStoreAdapter.getUserDataIncremental) {
+          const incrementalData = await userDataStoreAdapter.getUserDataIncremental(userId, lastSyncAt);
+          
+          // 获取当前设置（增量同步可能不包含设置）
+          const fullData = await userDataStoreAdapter.getUserData(userId);
+          
+          return res.json({
+            success: true,
+            data: {
+              folders: incrementalData.folders || [],
+              notes: incrementalData.notes || [],
+              urls: incrementalData.urls || [],
+              trash: [],
+              permanentlyDeletedFolderIds: incrementalData.permanentlyDeletedFolderIds !== null 
+                ? incrementalData.permanentlyDeletedFolderIds 
+                : fullData.permanentlyDeletedFolderIds || [],
+              settings: incrementalData.settings || fullData.settings || {
+                sortMode: 'updatedAt',
+                fontSize: 'medium',
+                language: 'zh',
+                nightMode: 'auto',
+              },
+              lastSyncAt: Date.now(),
+            },
+            incremental: true,
+          });
+        }
+      } catch (error) {
+        // 增量同步失败，回退到完整同步
+        logger.warn('data', '增量同步失败，回退到完整同步', error);
+      }
+    }
+    
+    // 完整同步（首次同步或增量同步失败时）
     const userData = await userDataStoreAdapter.getUserData(userId);
     
     // 强制要求：先清理重复记录，确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）

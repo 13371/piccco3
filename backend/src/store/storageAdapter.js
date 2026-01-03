@@ -270,6 +270,27 @@ const userDataStoreAdapter = {
     }
   },
 
+  async getUserDataIncremental(userId, lastSyncAt) {
+    loadFileStores();
+    
+    if (STORAGE_MODE === 'db') {
+      loadDbDaos();
+      return await dbUserDataDao.getUserDataIncremental(userId, lastSyncAt);
+    } else if (STORAGE_MODE === 'dual') {
+      loadDbDaos();
+      try {
+        return await dbUserDataDao.getUserDataIncremental(userId, lastSyncAt);
+      } catch (error) {
+        logger.warn('storageAdapter', '增量同步失败，回退到完整同步', error);
+        // 回退到完整同步
+        return await this.getUserData(userId);
+      }
+    } else {
+      // 文件模式不支持增量同步，返回完整数据
+      return await fileUserDataStore.getUserData(userId);
+    }
+  },
+
   async saveUserData(userId, data) {
     loadFileStores();
     

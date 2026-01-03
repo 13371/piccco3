@@ -52,6 +52,68 @@ async function getUserData(userId) {
 }
 
 /**
+ * 获取用户增量数据（基于 updated_at）
+ * @param {string} userId - 用户ID
+ * @param {number} lastSyncAt - 最后同步时间戳（毫秒）
+ * @returns {Promise<Object>} 增量数据
+ */
+async function getUserDataIncremental(userId, lastSyncAt) {
+  try {
+    // 将时间戳转换为 Date 对象
+    // PostgreSQL 的 timestamp 使用微秒精度，但我们的 updated_at 是毫秒
+    const since = lastSyncAt ? new Date(lastSyncAt) : new Date(0);
+    
+    // 获取文件夹（只返回 updated_at > lastSyncAt 的）
+    const foldersResult = await query(
+      `SELECT * FROM folders 
+       WHERE user_id = $1 AND updated_at > $2 
+       ORDER BY updated_at DESC`,
+      [userId, since]
+    );
+
+    // 获取笔记
+    const notesResult = await query(
+      `SELECT * FROM notes 
+       WHERE user_id = $1 AND updated_at > $2 
+       ORDER BY updated_at DESC`,
+      [userId, since]
+    );
+
+    // 获取URL
+    const urlsResult = await query(
+      `SELECT * FROM urls 
+       WHERE user_id = $1 AND updated_at > $2 
+       ORDER BY updated_at DESC`,
+      [userId, since]
+    );
+
+    // 获取设置（如果更新过）
+    const settingsResult = await query(
+      `SELECT * FROM user_settings 
+       WHERE user_id = $1 AND updated_at > $2`,
+      [userId, since]
+    );
+
+    const folders = foldersResult.rows.map(formatFolder);
+    const notes = notesResult.rows.map(formatNote);
+    const urls = urlsResult.rows.map(formatUrl);
+    const settings = settingsResult.rows[0] ? formatSettings(settingsResult.rows[0]) : null;
+
+    return {
+      folders,
+      notes,
+      urls,
+      settings: settings ? settings.settings : null,
+      permanentlyDeletedFolderIds: settings ? settings.permanentlyDeletedFolderIds : null,
+      hasMore: false, // 可以用于分页
+    };
+  } catch (error) {
+    logger.error('userDataDao', '获取增量数据失败', error);
+    throw error;
+  }
+}
+
+/**
  * 保存用户完整数据
  */
 async function saveUserData(userId, data) {
@@ -234,9 +296,9 @@ function formatFolder(row) {
     color: row.color,
     isStarred: row.is_starred || false,
     isDeleted: row.is_deleted || false,
-    deletedAt: row.deleted_at || null,
-    createdAt: row.created_at || Date.now(),
-    updatedAt: row.updated_at || Date.now(),
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
   };
 }
 
@@ -251,9 +313,9 @@ function formatNote(row) {
     content: row.content || null,
     isStarred: row.is_starred || false,
     isDeleted: row.is_deleted || false,
-    deletedAt: row.deleted_at || null,
-    createdAt: row.created_at || Date.now(),
-    updatedAt: row.updated_at || Date.now(),
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
   };
 }
 
@@ -268,9 +330,9 @@ function formatUrl(row) {
     url: row.url || '',
     isStarred: row.is_starred || false,
     isDeleted: row.is_deleted || false,
-    deletedAt: row.deleted_at || null,
-    createdAt: row.created_at || Date.now(),
-    updatedAt: row.updated_at || Date.now(),
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
   };
 }
 
@@ -286,7 +348,7 @@ function formatSettings(row) {
       nightMode: row.night_mode || 'auto',
     },
     permanentlyDeletedFolderIds: row.permanently_deleted_folder_ids || [],
-    lastSyncAt: row.last_sync_at || null,
+    lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).getTime() : null,
   };
 }
 
@@ -308,9 +370,8 @@ function getDefaultSettings() {
 
 module.exports = {
   getUserData,
+  getUserDataIncremental,
   saveUserData,
   updateUserData,
   deleteUserData,
 };
-
-

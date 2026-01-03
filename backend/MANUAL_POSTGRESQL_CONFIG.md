@@ -182,3 +182,4 @@ sudo -u postgres /usr/lib/postgresql/*/bin/postgres --check-config -D /var/lib/p
 - 完整配置示例：`backend/config/postgresql.conf.example`
 - 优化文档：`backend/PERFORMANCE_OPTIMIZATION.md`
 
+

@@ -74,3 +74,4 @@ autovacuum = on
 # 自动分析（定期更新统计信息）
 autovacuum_analyze_scale_factor = 0.05
 
+

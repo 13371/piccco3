@@ -243,3 +243,4 @@ SELECT count(*) FROM pg_stat_activity WHERE datname = 'piccco';
 - [PostgreSQL 性能优化](https://www.postgresql.org/docs/current/performance-tips.html)
 - [PgBouncer 文档](https://www.pgbouncer.org/config.html)
 
+

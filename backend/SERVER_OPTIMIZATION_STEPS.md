@@ -159,3 +159,4 @@ sudo journalctl -u postgresql -n 50
 sudo postgresql -t -c "SHOW config_file;"
 ```
 
+
