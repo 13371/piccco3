@@ -15,14 +15,37 @@ cd "$PROJECT_DIR"
 # 1. 检查应用状态
 echo "1️⃣  检查应用状态..."
 if command -v pm2 >/dev/null 2>&1; then
-    PM2_JSON=$(pm2 jlist 2>/dev/null || echo "[]")
-    PM2_STATUS=$(echo "$PM2_JSON" | grep -o '"name":"piccco-backend"[^}]*"status":"[^"]*"' | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    # 方法1: 使用 pm2 list（最可靠）
+    PM2_STATUS=$(pm2 list 2>/dev/null | grep piccco-backend | awk '{print $10}' || echo "")
     
-    if [ "$PM2_STATUS" = "online" ]; then
-        echo "   ✅ 应用正在运行"
+    # 如果方法1失败，尝试方法2: 使用 pm2 jlist 和 jq
+    if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
+        if command -v jq >/dev/null 2>&1; then
+            PM2_STATUS=$(pm2 jlist 2>/dev/null | jq -r '.[] | select(.name=="piccco-backend") | .pm2_env.status' 2>/dev/null || echo "")
+        fi
+    fi
+    
+    # 如果方法2也失败，尝试方法3: 直接检查端口
+    if [ -z "$PM2_STATUS" ] || [ "$PM2_STATUS" = "" ]; then
+        if command -v netstat >/dev/null 2>&1; then
+            if netstat -tlnp 2>/dev/null | grep -q ":4000 "; then
+                PM2_STATUS="online (detected by port)"
+            fi
+        elif command -v ss >/dev/null 2>&1; then
+            if ss -tlnp 2>/dev/null | grep -q ":4000 "; then
+                PM2_STATUS="online (detected by port)"
+            fi
+        fi
+    fi
+    
+    if [ "$PM2_STATUS" = "online" ] || echo "$PM2_STATUS" | grep -q "online"; then
+        echo "   ✅ 应用正在运行（状态: $PM2_STATUS）"
     else
-        echo "   ❌ 应用未运行（状态: $PM2_STATUS）"
+        echo "   ❌ 应用未运行（状态: ${PM2_STATUS:-unknown}）"
         echo "   请启动应用: pm2 start src/server.js --name piccco-backend --update-env"
+        echo ""
+        echo "   提示: 如果应用确实在运行，请检查 PM2 输出:"
+        pm2 list 2>/dev/null | head -5
         exit 1
     fi
 else
