@@ -513,9 +513,10 @@ export const useUserStore = create<UserState>()(
                 ...state.currentUser,
                 // 更新所有可能变化的字段
                 // 一切以服务器为准：优先使用服务器数据
-                username: data.user.username ?? state.currentUser?.username,
-                avatar: data.user.avatar ?? state.currentUser?.avatar,
-                email: data.user.email ?? state.currentUser?.email,
+                // 如果服务器返回了字段（包括 null），就使用服务器值；只有在服务器没有返回该字段时才使用本地值
+                username: data.user.hasOwnProperty('username') ? data.user.username : (state.currentUser?.username ?? ''),
+                avatar: data.user.hasOwnProperty('avatar') ? data.user.avatar : (state.currentUser?.avatar ?? undefined),
+                email: data.user.hasOwnProperty('email') ? data.user.email : (state.currentUser?.email ?? ''),
                 isBanned: data.user.isBanned || false,
                 bannedAt: data.user.bannedAt || null,
                 banReason: data.user.banReason || null,
