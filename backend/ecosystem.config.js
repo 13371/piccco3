@@ -21,7 +21,18 @@ module.exports = {
       SMTP_SECURE: process.env.SMTP_SECURE,
       SMTP_USER: process.env.SMTP_USER,
       SMTP_PASS: process.env.SMTP_PASS,
-      JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d'
+      JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+      // 数据库配置
+      STORAGE_MODE: process.env.STORAGE_MODE || 'db',
+      DB_HOST: process.env.DB_HOST,
+      DB_PORT: process.env.DB_PORT,
+      DB_NAME: process.env.DB_NAME,
+      DB_USER: process.env.DB_USER,
+      DB_PASSWORD: process.env.DB_PASSWORD,
+      USE_PGBOUNCER: process.env.USE_PGBOUNCER,
+      DB_POOL_MAX: process.env.DB_POOL_MAX,
+      DB_IDLE_TIMEOUT: process.env.DB_IDLE_TIMEOUT,
+      DB_CONNECTION_TIMEOUT: process.env.DB_CONNECTION_TIMEOUT
     },
     error_file: '/www/wwwroot/piccco3/backend/logs/error.log',
     out_file: '/www/wwwroot/piccco3/backend/logs/out.log',
