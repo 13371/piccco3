@@ -198,7 +198,7 @@ const AccountSecurityPage = () => {
 
     // 验证邮箱验证码
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-code`, {
+      const res = await fetch(`${API_BASE_URL}/v1/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotPasswordEmail, code: forgotPasswordCode }),

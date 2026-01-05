@@ -387,7 +387,7 @@ const SettingsPage = () => {
       <Modal
         isOpen={showVersionModal}
         onClose={() => setShowVersionModal(false)}
-        title={`${t('versionUpdate')} v1.172（测试版）`}
+        title={`${t('versionUpdate')} v1.20（测试版）`}
       >
         <div className="version-update-content">
           <div className="version-section">
@@ -469,11 +469,40 @@ const SettingsPage = () => {
           </div>
           
           <div className="version-section">
-            <h3 className="version-section-title">🎯 v1.172 新增优化</h3>
+            <h3 className="version-section-title">🎨 v1.20 UI/UX 全面升级</h3>
             <ul className="version-list">
-              <li><strong>修复标题输入框焦点问题：修复新建/编辑记事时标题输入框无法正常输入的问题，光标不再自动跳转到内容框</strong></li>
-              <li><strong>优化移动端标题输入体验：增强移动端标题输入框的焦点管理，确保键盘弹出/收起时焦点状态正确</strong></li>
-              <li><strong>改进焦点管理机制：添加双重检查机制（activeElement + 状态跟踪），确保电脑端和移动端都能正常工作</strong></li>
+              <li><strong>全新 UI 设计：采用轻量、简洁、干净的风格，白色为主，浅蓝色点缀，毛玻璃效果，柔和阴影，圆角设计</strong></li>
+              <li><strong>导航栏优化：胶囊形状，选中项使用浅蓝色渐变背景和蓝色文字，未选中项为灰色文字，添加阴影效果</strong></li>
+              <li><strong>卡片样式统一：所有内容容器使用 14-20px 圆角，柔和阴影，白色/半透明白色背景，浅灰色边框</strong></li>
+              <li><strong>我的页面重构：顶部个人信息卡片，圆形头像，用户名和邮箱左对齐，菜单项卡片化，大号红色退出按钮</strong></li>
+              <li><strong>按钮样式统一：所有按钮使用浅蓝色背景（#90CAF9）和蓝色文字（#007AFF），保持视觉一致性</strong></li>
+              <li><strong>夜间模式适配：完整适配深色主题，所有页面和组件支持夜间模式切换</strong></li>
+              <li><strong>微交互动画：添加悬停和激活状态的轻微缩放动画（150-250ms 过渡），提升交互体验</strong></li>
+              <li><strong>移动端优化：优化移动端页面长度，减少底部空白，提升滚动体验</strong></li>
+            </ul>
+          </div>
+          
+          <div className="version-section">
+            <h3 className="version-section-title">🔧 v1.20 功能优化</h3>
+            <ul className="version-list">
+              <li><strong>新建记事页面全屏化：新建和编辑记事都使用完整全屏页面，提供更好的编辑体验</strong></li>
+              <li><strong>快速新建优化：点击快速新建按钮不再预先创建空白记事，避免产生无用条目</strong></li>
+              <li><strong>取消逻辑优化：新建记事无内容时点击取消，不会创建空白记事条目</strong></li>
+              <li><strong>TopBar 智能隐藏：在新建/编辑记事页面自动隐藏 TopBar 和 TopNav，提供沉浸式编辑体验</strong></li>
+              <li><strong>版本号机制：实现乐观锁机制，使用版本号处理并发同步冲突，提升数据一致性</strong></li>
+              <li><strong>数据验证增强：添加更严格的 ID、版本号、布尔值、时间戳验证，提升数据安全性</strong></li>
+              <li><strong>审计日志：添加安全敏感操作的审计日志记录，包括用户登录、数据同步、权限变更等</strong></li>
+              <li><strong>JWT 安全：强制要求 JWT_SECRET 环境变量，生产环境未设置时自动退出，提升安全性</strong></li>
+            </ul>
+          </div>
+          
+          <div className="version-section">
+            <h3 className="version-section-title">🐛 v1.20 问题修复</h3>
+            <ul className="version-list">
+              <li><strong>修复移动端新建记事页面被遮挡问题：调整 padding-top，确保内容完整显示</strong></li>
+              <li><strong>修复页面过长问题：优化移动端页面底部间距，减少不必要的滚动</strong></li>
+              <li><strong>修复空白记事创建问题：优化新建逻辑，避免创建无内容的记事条目</strong></li>
+              <li><strong>修复翻译问题：修复新建记事页面中"取消"、"保存"等按钮的翻译</strong></li>
             </ul>
           </div>
         </div>

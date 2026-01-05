@@ -53,7 +53,7 @@ const UserManagementPage = () => {
         params.append('isBanned', filters.isBanned.toString());
       }
 
-      const res = await fetch(`${API_BASE_URL}/admin/users?${params}`);
+      const res = await fetch(`${API_BASE_URL}/v1/admin/users?${params}`);
       const data = await res.json();
       if (res.ok) {
         setUsers(data.users || []);
@@ -81,7 +81,7 @@ const UserManagementPage = () => {
 
   const handleViewDetail = async (userId: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/users/${userId}`);
+      const res = await fetch(`${API_BASE_URL}/v1/admin/users/${userId}`);
       const data = await res.json();
       if (res.ok) {
         setSelectedUser(data);
@@ -97,7 +97,7 @@ const UserManagementPage = () => {
 
   const handleBan = async (userId: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/users/${userId}/ban`, {
+      const res = await fetch(`${API_BASE_URL}/v1/admin/users/${userId}/ban`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: banReason }),
@@ -120,7 +120,7 @@ const UserManagementPage = () => {
   const handleUnban = async (userId: string) => {
     if (!confirm('确定要解封该用户吗？')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/users/${userId}/unban`, {
+      const res = await fetch(`${API_BASE_URL}/v1/admin/users/${userId}/unban`, {
         method: 'POST',
       });
       const data = await res.json();
@@ -139,7 +139,7 @@ const UserManagementPage = () => {
   const handleDelete = async (userId: string) => {
     if (!confirm('确定要删除该用户吗？此操作不可恢复！')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      const res = await fetch(`${API_BASE_URL}/v1/admin/users/${userId}`, {
         method: 'DELETE',
       });
       const data = await res.json();

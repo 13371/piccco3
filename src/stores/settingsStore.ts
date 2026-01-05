@@ -103,7 +103,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ isSyncing: true });
         
         try {
-          const res = await fetch(`${API_BASE_URL}/data/settings`, {
+          const res = await fetch(`${API_BASE_URL}/v1/data/settings`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -145,7 +145,7 @@ export const useSettingsStore = create<SettingsState>()(
         }
         
         try {
-          const res = await fetch(`${API_BASE_URL}/data/settings`, {
+          const res = await fetch(`${API_BASE_URL}/v1/data/settings`, {
             headers: {
               'Authorization': `Bearer ${userStore.token}`,
             },

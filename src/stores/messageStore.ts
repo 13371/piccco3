@@ -41,7 +41,7 @@ export const useMessageStore = create<MessageState>()(
           
           let res: Response;
           try {
-            res = await fetch(`${API_BASE_URL}/message/messages`, {
+            res = await fetch(`${API_BASE_URL}/v1/message/messages`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
               },
@@ -124,7 +124,7 @@ export const useMessageStore = create<MessageState>()(
             return;
           }
           
-          const res = await fetch(`${API_BASE_URL}/message/messages/${id}/read`, {
+          const res = await fetch(`${API_BASE_URL}/v1/message/messages/${id}/read`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -167,7 +167,7 @@ export const useMessageStore = create<MessageState>()(
           
           const results = await Promise.allSettled(
             unreadMessages.map((msg) =>
-              fetch(`${API_BASE_URL}/message/messages/${msg.id}/read`, {
+              fetch(`${API_BASE_URL}/v1/message/messages/${msg.id}/read`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${token}`,

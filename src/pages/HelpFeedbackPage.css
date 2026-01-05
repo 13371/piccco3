@@ -1,5 +1,7 @@
 .help-feedback-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度 */
 }
 
 .help-content {
@@ -27,9 +29,17 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  background-color: var(--hover-bg);
-  border-radius: 12px;
+  padding: 16px;
+  background-color: var(--bg-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-normal) ease;
+}
+
+.help-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .help-item-title {
@@ -77,8 +87,8 @@
 
 .feedback-email-button {
   padding: 12px 16px;
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   border: none;
   border-radius: 12px;
   font-size: 14px;
@@ -104,6 +114,30 @@
   margin: 0;
   text-align: center;
   font-style: italic;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .help-feedback-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .help-content {
+    gap: 20px;
+  }
+  
+  .help-section {
+    gap: 12px;
+  }
+  
+  .help-item {
+    padding: 12px;
+  }
+  
+  .feedback-section {
+    padding: 16px;
+  }
 }
 
 

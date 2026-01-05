@@ -70,7 +70,7 @@ export const translations = {
     hoursAgo: '小时前',
     daysAgo: '天前',
     versionUpdate: '版本更新说明',
-    versionUpdateDesc: '在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.172（测试版），更新日期：2026年。',
+    versionUpdateDesc: '在"设置"页面可以查看"版本更新说明"，了解最新版本的新功能、优化和问题修复。当前版本为 v1.20（测试版），更新日期：2026年1月。',
     logViewer: '日志查看器',
     
     // 我的页面
@@ -94,6 +94,7 @@ export const translations = {
     editNote: '编辑记事',
     noteContent: '输入内容...',
     noNotes: '暂无记事',
+    noTitle: '无标题',
     
     // 网址相关
     newUrl: '新建网址',
@@ -366,6 +367,7 @@ export const translations = {
     editNote: 'Edit Note',
     noteContent: 'Enter content...',
     noNotes: 'No notes',
+    noTitle: 'No Title',
     
     // URLs
     newUrl: 'New URL',

@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useHomeContentStore } from '../stores/homeContentStore';
 import { useTranslation } from '../i18n/useTranslation';
+import { USE_NEW_UI } from '../config/ui';
+import HomePageNew from './HomePageNew';
 import './HomePage.css';
 
 const HomePage = () => {
+  // 如果启用新UI，使用新组件
+  if (USE_NEW_UI) {
+    return <HomePageNew />;
+  }
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const homeContent = useHomeContentStore((state) => state.content);
   const setHomeContent = useHomeContentStore((state) => state.setContent);

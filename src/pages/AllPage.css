@@ -1,5 +1,7 @@
 .all-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度，优化底部空间 */
 }
 
 .folder-header-row {
@@ -38,8 +40,17 @@
 
 .notes-list > div,
 .notes-list > * {
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-normal) ease;
+}
+
+.notes-list > div:hover,
+.notes-list > *:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .empty-state {
@@ -77,24 +88,32 @@
 
 .form-button {
   padding: 12px;
-  background-color: var(--primary-color);
-  color: white;
-  border-radius: 12px;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border-radius: var(--radius-md);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  border: none;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast) ease;
 }
 
 .form-button:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.form-button:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .add-note-button {
   width: 100%;
-  padding: 12px;
-  background-color: var(--primary-color);
-  color: white;
-  border-radius: 12px;
+  padding: 14px;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border-radius: var(--radius-card);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -104,6 +123,18 @@
   justify-content: center;
   gap: 8px;
   text-align: center;
+  box-shadow: var(--shadow-card);
+  border: none;
+  transition: all var(--transition-normal) ease;
+}
+
+.add-note-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.add-note-button:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .add-note-button svg {
@@ -111,9 +142,6 @@
   height: 20px;
 }
 
-.add-note-button:hover {
-  opacity: 0.9;
-}
 
 .form-checkbox-group {
   margin: 12px 0;
@@ -144,5 +172,28 @@
   font-size: 14px;
   color: var(--text-color);
   font-weight: 500;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .all-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .page-title {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+  
+  .add-note-button {
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+  
+  .empty-state {
+    padding: 30px 16px;
+  }
 }
 

@@ -1,5 +1,7 @@
 .account-security-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度 */
 }
 
 .account-security-content {
@@ -10,9 +12,17 @@
 }
 
 .account-security-card {
-  padding: 16px;
-  border-radius: 12px;
-  background-color: var(--hover-bg);
+  padding: 20px;
+  border-radius: var(--radius-card);
+  background-color: var(--bg-color);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-normal) ease;
+}
+
+.account-security-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .account-security-title {
@@ -40,7 +50,7 @@
 }
 
 .security-success {
-  color: #2e7d32;
+  color: var(--color-green);
   font-size: 13px;
 }
 
@@ -49,8 +59,8 @@
   padding: 10px 16px;
   border-radius: 12px;
   border: none;
-  background-color: var(--primary-color);
-  color: #fff;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -62,13 +72,13 @@
 
 .account-security-empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .security-info {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
@@ -86,8 +96,8 @@
   padding: 10px 16px;
   border-radius: 12px;
   border: 1px solid var(--primary-color);
-  background-color: var(--primary-color);
-  color: #fff;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -102,6 +112,29 @@
 .send-code-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .account-security-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .account-security-card {
+    padding: 16px;
+  }
+  
+  .account-security-title {
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  
+  .security-button,
+  .send-code-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
 }
 
 
