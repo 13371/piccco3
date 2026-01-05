@@ -1132,7 +1132,7 @@ router.get('/folders', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
 
-    const data = await getUserData(userId);
+    const data = await userDataStoreAdapter.getUserData(userId);
 
     const folders = deduplicateById(data.folders || [])
       .filter((f) => !f.isDeleted)
@@ -1157,7 +1157,7 @@ router.get('/trash/folders', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
 
-    const data = await getUserData(userId);
+    const data = await userDataStoreAdapter.getUserData(userId);
 
     const trash = deduplicateById(data.folders || [])
       .filter((f) => f.isDeleted)
