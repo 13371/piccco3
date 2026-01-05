@@ -2,7 +2,7 @@
 const { query, beginTransaction, commitTransaction, rollbackTransaction } = require('../config');
 const logger = require('../../utils/logger');
 const cache = require('../../utils/cache');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 /**
  * 创建用户
