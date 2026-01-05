@@ -126,54 +126,15 @@ const authenticateToken = (req, res, next) => {
  *       401:
  *         description: 未授权
  */
-// 获取用户数据（支持完整同步和增量同步）
+// 获取用户数据（完整同步）
 router.get('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const lastSyncAt = req.query.lastSyncAt ? parseInt(req.query.lastSyncAt) : null;
     
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ message: '用户ID无效' });
     }
     
-    // 如果提供了 lastSyncAt，尝试使用增量同步
-    if (lastSyncAt && lastSyncAt > 0) {
-      try {
-        // 检查存储适配器是否支持增量查询
-        if (userDataStoreAdapter.getUserDataIncremental) {
-          const incrementalData = await userDataStoreAdapter.getUserDataIncremental(userId, lastSyncAt);
-          
-          // 获取当前设置（增量同步可能不包含设置）
-          const fullData = await userDataStoreAdapter.getUserData(userId);
-          
-          return res.json({
-            success: true,
-            data: {
-              folders: incrementalData.folders || [],
-              notes: incrementalData.notes || [],
-              urls: incrementalData.urls || [],
-              trash: [],
-              permanentlyDeletedFolderIds: incrementalData.permanentlyDeletedFolderIds !== null 
-                ? incrementalData.permanentlyDeletedFolderIds 
-                : fullData.permanentlyDeletedFolderIds || [],
-              settings: incrementalData.settings || fullData.settings || {
-                sortMode: 'updatedAt',
-                fontSize: 'medium',
-                language: 'zh',
-                nightMode: 'auto',
-              },
-              lastSyncAt: Date.now(),
-            },
-            incremental: true,
-          });
-        }
-      } catch (error) {
-        // 增量同步失败，回退到完整同步
-        logger.warn('data', '增量同步失败，回退到完整同步', error);
-      }
-    }
-    
-    // 完整同步（首次同步或增量同步失败时）
     const userData = await userDataStoreAdapter.getUserData(userId);
     
     // 强制要求：先清理重复记录，确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
@@ -978,7 +939,7 @@ router.post('/folder/delete', authenticateToken, async (req, res) => {
         : u
     );
 
-    await userDataStoreAdapter.saveUserData(userId, {
+      await userDataStoreAdapter.saveUserData(userId, {
       ...userData,
       folders: updatedFolders,
       notes: updatedNotes,
@@ -1056,7 +1017,7 @@ router.delete('/folders/:folderId', authenticateToken, async (req, res) => {
         : u
     );
 
-    await userDataStoreAdapter.saveUserData(userId, {
+      await userDataStoreAdapter.saveUserData(userId, {
       ...userData,
       folders: updatedFolders,
       notes: updatedNotes,
@@ -1114,7 +1075,7 @@ router.post('/cleanup-duplicates', authenticateToken, async (req, res) => {
         urls: deduplicatedUrls,
       };
       
-      await saveUserData(userId, cleanedData);
+      await userDataStoreAdapter.saveUserData(userId, cleanedData);
       
       logger.info('data', `清理重复记录完成: folders=${removedFolders}, notes=${removedNotes}, urls=${removedUrls}`);
       
@@ -1159,12 +1120,9 @@ router.post('/cleanup-duplicates', authenticateToken, async (req, res) => {
 });
 
 /**
- * 列表接口：获取所有未删除的文件夹（支持分页）
+ * 列表接口：获取所有未删除的文件夹
  * 强制要求：禁止返回 isDeleted = true 的记录
  * GET /api/v1/data/folders
- * 查询参数：
- *   - page: 页码（默认1）
- *   - pageSize: 每页数量（默认50，最大100）
  */
 router.get('/folders', authenticateToken, async (req, res) => {
   try {
@@ -1174,32 +1132,13 @@ router.get('/folders', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
 
-    // 分页参数
-    const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || '50', 10)));
+    const data = await getUserData(userId);
 
-    const data = await userDataStoreAdapter.getUserData(userId);
-
-    const allFolders = deduplicateById(data.folders || [])
+    const folders = deduplicateById(data.folders || [])
       .filter((f) => !f.isDeleted)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
-    // 分页
-    const total = allFolders.length;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    const folders = allFolders.slice(start, end);
-
-    res.json({ 
-      success: true, 
-      data: folders,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
-    });
+    res.json({ success: true, data: folders });
   } catch (e) {
     logger.error('data', 'get folders error:', e);
     res.status(500).json({ message: '获取文件夹列表失败' });
@@ -1218,7 +1157,7 @@ router.get('/trash/folders', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: '用户ID无效' });
     }
 
-    const data = await userDataStoreAdapter.getUserData(userId);
+    const data = await getUserData(userId);
 
     const trash = deduplicateById(data.folders || [])
       .filter((f) => f.isDeleted)
@@ -1303,85 +1242,18 @@ router.get('/folders/query', authenticateToken, async (req, res) => {
 });
 
 /**
- * 获取笔记列表（支持分页）
- * GET /api/v1/data/notes
- * 查询参数：
- *   - page: 页码（默认1）
- *   - pageSize: 每页数量（默认50，最大100）
- *   - folderId: 可选，筛选指定文件夹的笔记
- */
-router.get('/notes', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    if (!userId || typeof userId !== 'string') {
-      return res.status(400).json({ message: '用户ID无效' });
-    }
-
-    // 分页参数
-    const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || '50', 10)));
-    const folderId = req.query.folderId || null;
-
-    const data = await userDataStoreAdapter.getUserData(userId);
-
-    let allNotes = deduplicateById(data.notes || [])
-      .filter((n) => !n.isDeleted);
-
-    // 如果指定了 folderId，进行筛选
-    if (folderId) {
-      allNotes = allNotes.filter((n) => n.folderId === folderId);
-    }
-
-    // 排序
-    allNotes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-
-    // 分页
-    const total = allNotes.length;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    const notes = allNotes.slice(start, end);
-
-    res.json({ 
-      success: true, 
-      data: notes,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
-    });
-  } catch (e) {
-    logger.error('data', 'get notes error:', e);
-    res.status(500).json({ message: '获取笔记列表失败' });
-  }
-});
-
-/**
- * 获取日志列表（普通用户可访问，只需JWT认证，支持分页）
+ * 获取日志列表（普通用户可访问，只需JWT认证）
  * GET /api/v1/data/logs
  * 查询参数：
- *   - page: 页码（默认1）
- *   - pageSize: 每页数量（默认50，最大100）
+ *   - limit: 返回的日志条数（默认100）
  *   - level: 过滤日志级别（info, warn, error, debug）
  */
 router.get('/logs', authenticateToken, async (req, res) => {
   try {
-    // 分页参数
-    const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || '50', 10)));
+    const limit = parseInt(req.query.limit || '100', 10);
     const level = req.query.level || null;
     
-    // 获取所有日志
-    const allLogs = getLogs(10000, level); // 先获取足够多的日志用于分页
-    
-    // 分页
-    const total = allLogs.length;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    const logs = allLogs.slice(start, end);
-    
+    const logs = getLogs(limit, level);
     const stats = getLogStats();
     
     res.json({
@@ -1389,12 +1261,6 @@ router.get('/logs', authenticateToken, async (req, res) => {
       data: {
         logs,
         stats,
-      },
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
       },
     });
   } catch (e) {
