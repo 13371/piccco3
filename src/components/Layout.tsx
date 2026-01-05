@@ -5,7 +5,6 @@ import { useMessageStore } from '../stores/messageStore';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useHomeContentStore } from '../stores/homeContentStore';
-import { API_BASE_URL } from '../config/api';
 import { USE_NEW_UI } from '../config/ui';
 import TopBar from './TopBar';
 import TopNav from './TopNav';

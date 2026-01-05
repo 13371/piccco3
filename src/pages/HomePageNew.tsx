@@ -8,7 +8,6 @@ import SyncIndicator from '../components/SyncIndicator';
 import './HomePageNew.css';
 
 const HomePageNew = () => {
-  const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const homeContent = useHomeContentStore((state) => state.content);
   const setHomeContent = useHomeContentStore((state) => state.setContent);

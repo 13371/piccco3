@@ -14,7 +14,6 @@ interface RetryTask {
 class RetryQueue {
   private queue: Map<string, RetryTask> = new Map();
   private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private isProcessing = false;
 
   /**
    * 计算退避延迟时间（秒）

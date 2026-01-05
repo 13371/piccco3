@@ -22,7 +22,6 @@ const DeviceManagementPage = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const currentUser = useUserStore((state) => state.currentUser);
-  const token = useUserStore((state) => state.token);
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

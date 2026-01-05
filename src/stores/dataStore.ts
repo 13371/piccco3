@@ -843,44 +843,6 @@ export const useDataStore = create<DataState>()(
         debouncedUploadSync(() => get().syncDataToServer());
       },
       
-      deleteUrl: (id) => {
-        if (checkBanned()) return;
-        const deletedUrl = get().urls.find((u) => u.id === id);
-        set((state) => ({
-          urls: state.urls.map((u) =>
-            u.id === id
-              ? {
-                  ...u,
-                  isDeleted: true,
-                  deletedAt: Date.now(),
-                  updatedAt: Date.now(),
-                  version: ((u.version || 0) + 1), // 删除操作也增加版本号
-                }
-              : u
-          ),
-        }));
-        
-        // 标记有变更，立即同步到服务器（删除操作需要立即同步）
-        set({ pendingChanges: true });
-        immediateSync(() => {
-          get().syncDataToServer(true);
-        });
-      },
-      
-      toggleUrlStar: (id) => {
-        if (checkBanned()) return;
-        set((state) => ({
-          urls: state.urls.map((u) =>
-            u.id === id ? { ...u, isStarred: !u.isStarred, updatedAt: Date.now(), version: ((u.version || 0) + 1) } : u
-          ),
-        }));
-        
-        // 标记有变更，自动同步到服务器（防抖1秒）
-        set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer());
-      },
-      
-      
       updateUrl: (id, updates) => {
         if (checkBanned()) return;
         
@@ -2408,16 +2370,12 @@ export const useDataStore = create<DataState>()(
                   };
                   
                   // 更新版本信息：同步成功后，标记为已同步
+                  // 注意：版本控制使用统一的 version 字段，不再使用 isDirty 和 localVersion
                   const updatedNotes = currentState.notes.map((note) => {
-                    if (note.isDirty) {
-                      // 使用服务器返回的版本号（如果有），否则使用本地版本号
-                      const serverVersion = result.data?.versions?.notes?.find((v: any) => v.id === note.id)?.serverVersion;
-                      if (serverVersion !== undefined) {
-                        return markAsSynced(note, serverVersion);
-                      } else if (note.localVersion) {
-                        // 如果没有服务器版本，使用本地版本作为服务器版本
-                        return markAsSynced(note, note.localVersion);
-                      }
+                    // 使用服务器返回的版本号（如果有）
+                    const serverVersion = result.data?.versions?.notes?.find((v: any) => v.id === note.id)?.serverVersion;
+                    if (serverVersion !== undefined) {
+                      return markAsSynced(note, serverVersion);
                     }
                     return note;
                   });

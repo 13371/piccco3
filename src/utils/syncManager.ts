@@ -3,7 +3,6 @@
  * 负责防抖、版本控制、变化检测等核心逻辑
  */
 import { Note, Folder, Url } from '../types';
-import { logger } from './logger';
 
 export interface SyncItem {
   id: string;
