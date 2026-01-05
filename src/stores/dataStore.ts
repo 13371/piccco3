@@ -824,27 +824,6 @@ export const useDataStore = create<DataState>()(
       
       updateUrl: (id, updates) => {
         if (checkBanned()) return;
-        set((state) => ({
-          urls: state.urls.map((u) => {
-            if (u.id === id) {
-              // 使用版本控制更新
-              const updated = updateLocalVersion({
-                ...u,
-                ...updates,
-              });
-              return updated;
-            }
-            return u;
-          }),
-        }));
-        
-        // 标记有变更，自动同步到服务器（防抖1秒）
-        set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer());
-      },
-      
-      updateUrl: (id, updates) => {
-        if (checkBanned()) return;
         
         // 只更新提供的字段，禁止默认 isDeleted = false
         const processedUpdates: Partial<Url> = {};
