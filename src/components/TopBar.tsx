@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { AddIcon, SearchIcon } from './Icons';
+import { USE_NEW_UI } from '../config/ui';
 import './TopBar.css';
 
 const TopBar = () => {
   const navigate = useNavigate();
 
   const handleAdd = () => {
-    // 快速新建记事，跳转到新建记事页面
+    // 直接跳转到新建记事页面，不预先创建空白记事
     navigate('/new-note');
   };
 
@@ -16,7 +17,7 @@ const TopBar = () => {
   };
 
   return (
-    <div className="top-bar">
+    <div className={`top-bar ${USE_NEW_UI ? 'top-bar-new' : ''}`}>
       <div className="top-bar-row single-row">
         <button className="add-btn" onClick={handleAdd}>
           <AddIcon />

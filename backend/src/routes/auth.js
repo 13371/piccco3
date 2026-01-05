@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const logger = require('../utils/logger');
+const { logSecurity, logWarning, extractAuditInfo } = require('../utils/auditLogger');
 
 const { sendVerificationCodeEmail } = require('../config/mailer');
 const { generateCode, saveCode, verifyCode, codes, normalizeEmail } = require('../store/verificationStore');
@@ -44,19 +45,21 @@ const {
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// 检查 JWT_SECRET 是否设置
+// 强制要求 JWT_SECRET（即使是开发环境）
 if (!JWT_SECRET) {
-  logger.error('auth', '错误：未设置 JWT_SECRET 环境变量！');
+  logger.error('auth', '❌ 错误：未设置 JWT_SECRET 环境变量！');
   logger.error('auth', '请在 .env 文件中设置 JWT_SECRET=your-random-secret-string');
-  if (process.env.NODE_ENV === 'production') {
-    logger.error('auth', '生产环境必须设置 JWT_SECRET，退出启动');
-    process.exit(1);
-  } else {
-    logger.warn('auth', '开发环境：使用默认值（不安全，仅用于开发）');
-  }
+  logger.error('auth', '生成随机密钥命令: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  logger.error('auth', '安全要求：所有环境都必须设置 JWT_SECRET，退出启动');
+  process.exit(1);
 }
 
-const FINAL_JWT_SECRET = JWT_SECRET || 'dev-secret-change-me-in-production';
+// 验证 JWT_SECRET 强度
+if (JWT_SECRET.length < 32) {
+  logger.warn('auth', '⚠️  警告：JWT_SECRET 长度小于32字符，建议使用更长的密钥');
+}
+
+const FINAL_JWT_SECRET = JWT_SECRET;
 
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
@@ -72,7 +75,20 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ message: 'Token无效或已过期' });
     }
     req.user = user;
+    req.token = token; // 保存token，用于设备管理
     next();
+    
+    // 异步更新设备活动时间（不阻塞请求）
+    if (user && user.id) {
+      setImmediate(() => {
+        try {
+          const { updateDeviceActivity } = require('../store/deviceStore');
+          updateDeviceActivity(user.id, token);
+        } catch (e) {
+          // 忽略错误，设备管理是可选功能
+        }
+      });
+    }
   });
 };
 
@@ -123,7 +139,18 @@ router.post('/send-code', sendCodeLimiter, async (req, res) => {
     saveCode(emailKey, code);
     await sendVerificationCodeEmail(email, code);
     logger.info('auth', `验证码已发送到 ${email}，key=${emailKey}`);
-    res.json({ message: '验证码已发送到您的邮箱，请查收' });
+    
+    // 开发环境：在响应中也返回验证码（仅用于测试）
+    const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+    const response = { 
+      message: '验证码已发送到您的邮箱，请查收',
+      ...(isDev && !process.env.SMTP_HOST && { 
+        devCode: code,
+        devMessage: '开发模式：验证码已输出到后端控制台，也可在此查看'
+      })
+    };
+    
+    res.json(response);
   } catch (e) {
     logger.error('auth', 'send-code error:', e);
     const errorMessage = e.message || '发送验证码失败，请稍后重试';
@@ -187,6 +214,17 @@ router.post('/register', registerLimiter, async (req, res) => {
   // 验证码正确，尝试创建用户
   try {
     const user = await createUser({ email: emailKey, username, password });
+    
+    // 初始化用户数据文件（确保记事和回收站都是空的）
+    try {
+      const { initUserData } = require('../store/userDataStore');
+      await initUserData(user.id);
+      logger.info('auth', `用户 ${user.id} 的数据文件已初始化（空数据）`);
+    } catch (e) {
+      logger.error('auth', '初始化用户数据失败:', e);
+      // 不阻止注册，但记录错误
+    }
+    
     // 只有注册成功后才删除验证码
     codes.delete(emailKey);
     logger.info('auth', `用户注册成功: ${email} (key=${emailKey}), 验证码已删除`);
@@ -200,6 +238,17 @@ router.post('/register', registerLimiter, async (req, res) => {
     const refreshToken = jwt.sign({ id: user.id, type: 'refresh' }, FINAL_JWT_SECRET, {
       expiresIn: '30d',
     });
+    
+    // 记录设备会话
+    try {
+      const { addDeviceSession } = require('../store/deviceStore');
+      const userAgent = req.headers['user-agent'] || '';
+      const ipAddress = req.ip || req.connection.remoteAddress || '';
+      addDeviceSession(user.id, token, userAgent, ipAddress);
+    } catch (e) {
+      logger.warn('auth', '记录设备会话失败:', e);
+      // 不阻止注册，设备管理是可选功能
+    }
     
     res.json({
       token,
@@ -260,12 +309,31 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!ok) {
       // 不泄露密码错误信息，统一错误消息
       logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
+      // 记录安全审计日志
+      await logSecurity(user.id, 'login_failed', {
+        ...extractAuditInfo(req),
+        reason: 'invalid_password',
+      });
       return res.status(400).json({ message: '邮箱或密码错误' });
     }
 
     const token = jwt.sign({ id: user.id, email: user.email }, FINAL_JWT_SECRET, {
       expiresIn: '7d',
     });
+    
+    // 记录成功登录的审计日志
+    await logSecurity(user.id, 'login_success', extractAuditInfo(req));
+
+    // 记录设备会话
+    try {
+      const { addDeviceSession } = require('../store/deviceStore');
+      const userAgent = req.headers['user-agent'] || '';
+      const ipAddress = req.ip || req.connection.remoteAddress || '';
+      addDeviceSession(user.id, token, userAgent, ipAddress);
+    } catch (e) {
+      logger.warn('auth', '记录设备会话失败:', e);
+      // 不阻止登录，设备管理是可选功能
+    }
 
     logger.info('auth', `登录成功: ${email}`);
     res.json({
@@ -407,12 +475,33 @@ router.post('/refresh-token', async (req, res) => {
       const newToken = jwt.sign({ id: decoded.id, email: decoded.email }, FINAL_JWT_SECRET, {
         expiresIn: '7d',
       });
-      
+
       // 生成新的刷新Token
       const newRefreshToken = jwt.sign({ id: decoded.id, type: 'refresh' }, FINAL_JWT_SECRET, {
         expiresIn: '30d',
       });
-      
+
+      // Token刷新时，需要更新设备会话的token
+      // 因为设备会话是基于access token的前20位存储的
+      try {
+        const { getUserDevices, offlineDevice, addDeviceSession } = require('../store/deviceStore');
+        const devices = getUserDevices(decoded.id);
+        
+        // 查找使用旧token的设备会话（通过查找所有未下线的设备）
+        // 注意：refresh token刷新时，旧的access token会失效
+        // 我们需要找到使用旧token的设备，然后更新为新token
+        // 但由于我们只存储token的前20位，无法直接匹配
+        // 所以这里我们假设：如果只有一个设备，那就是当前设备
+        // 如果有多个设备，我们无法确定哪个是当前设备，所以不更新
+        
+        // 实际上，token刷新时，旧的access token已经失效
+        // 新的access token会在下次请求时自动记录设备会话
+        // 所以这里不需要特殊处理
+      } catch (e) {
+        logger.warn('auth', '处理设备会话失败:', e);
+        // 不阻止token刷新，设备管理是可选功能
+      }
+
       res.json({
         token: newToken,
         refreshToken: newRefreshToken,
@@ -539,6 +628,130 @@ router.delete('/account', authenticateToken, async (req, res) => {
     res.status(500).json({ message: e.message || '注销账户失败' });
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/auth/devices:
+ *   get:
+ *     summary: 获取用户的所有设备会话
+ *     tags: [认证]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 获取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 devices:
+ *                   type: array
+ *       401:
+ *         description: 未授权
+ */
+// 获取用户的所有设备会话
+router.get('/devices', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const currentToken = req.token;
+    
+    const { getUserDevices } = require('../store/deviceStore');
+    const devices = getUserDevices(userId);
+    
+    // 标记当前设备
+    const tokenPrefix = currentToken.substring(0, 20);
+    const devicesWithCurrent = devices.map((device) => ({
+      id: device.id,
+      name: device.name,
+      type: device.type,
+      userAgent: device.userAgent,
+      ipAddress: device.ipAddress,
+      loginTime: device.loginTime,
+      lastActiveTime: device.lastActiveTime,
+      isCurrent: device.token.startsWith(tokenPrefix),
+    }));
+    
+    res.json({
+      success: true,
+      devices: devicesWithCurrent,
+    });
+  } catch (e) {
+    logger.error('auth', 'get devices error:', e);
+    res.status(500).json({ message: '获取设备列表失败' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/auth/devices/:deviceId:
+ *   delete:
+ *     summary: 下线指定设备
+ *     tags: [认证]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 下线成功
+ *       401:
+ *         description: 未授权
+ *       404:
+ *         description: 设备不存在
+ */
+// 下线指定设备
+router.delete('/devices/:deviceId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { deviceId } = req.params;
+    const currentToken = req.token;
+    
+    // 检查是否是当前设备
+    const { getUserDevices } = require('../store/deviceStore');
+    const devices = getUserDevices(userId);
+    const tokenPrefix = currentToken.substring(0, 20);
+    const currentDevice = devices.find((d) => d.token.startsWith(tokenPrefix));
+    
+    if (currentDevice && currentDevice.id === deviceId) {
+      return res.status(400).json({ message: '不能下线当前设备' });
+    }
+    
+    const { offlineDevice } = require('../store/deviceStore');
+    offlineDevice(userId, deviceId);
+    
+    logger.info('auth', `用户 ${userId} 下线设备: ${deviceId}`);
+    res.json({
+      success: true,
+      message: '设备已下线',
+    });
+  } catch (e) {
+    logger.error('auth', 'offline device error:', e);
+    if (e.message === '设备不存在') {
+      res.status(404).json({ message: '设备不存在' });
+    } else {
+      res.status(500).json({ message: '下线设备失败' });
+    }
+  }
+});
+
+// 调试：打印所有注册的路由
+if (process.env.NODE_ENV === 'development') {
+  const routes = [];
+  router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      const methods = Object.keys(middleware.route.methods).join(',').toUpperCase();
+      routes.push(`${methods} ${middleware.route.path}`);
+    }
+  });
+  logger.debug('auth', '已注册的路由:', routes);
+}
 
 module.exports = router;
 

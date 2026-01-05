@@ -34,6 +34,22 @@ const transporter = nodemailer.createTransport({
 
 async function sendVerificationCodeEmail(to, code) {
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    // 开发环境或未设置 NODE_ENV：将验证码输出到控制台，方便测试
+    const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+    if (isDev) {
+      // 使用更醒目的格式输出验证码
+      console.log('\n\n');
+      console.log('╔═══════════════════════════════════════════════════════════╗');
+      console.log('║          📧 验证码邮件（开发模式 - 未配置 SMTP）          ║');
+      console.log('╠═══════════════════════════════════════════════════════════╣');
+      console.log(`║  收件人: ${to.padEnd(47)} ║`);
+      console.log(`║  验证码: ${code.padEnd(47)} ║`);
+      console.log('║  有效期: 10 分钟                                        ║');
+      console.log('╚═══════════════════════════════════════════════════════════╝');
+      console.log('\n');
+      logger.info('mailer', `[开发模式] 验证码已输出到控制台: ${code} (收件人: ${to})`);
+      return; // 开发环境直接返回，不抛出错误
+    }
     throw new Error('SMTP 未配置，无法发送邮件。请在 backend/.env 文件中配置 SMTP_HOST、SMTP_USER 和 SMTP_PASS');
   }
 

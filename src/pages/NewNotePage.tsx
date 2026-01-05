@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDataStore } from '../stores/dataStore';
+import { useTranslation } from '../i18n/useTranslation';
 import './NewNotePage.css';
 
 const NewNotePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const addNote = useDataStore((state) => state.addNote);
   const updateNote = useDataStore((state) => state.updateNote);
+  const deleteNote = useDataStore((state) => state.deleteNote);
   const getAllNotes = useDataStore((state) => state.getAllNotes);
   const getFolderById = useDataStore((state) => state.getFolderById);
   const allFolders = useDataStore((state) => state.folders);
@@ -28,18 +31,22 @@ const NewNotePage = () => {
   const isInPrivacyFolder = currentFolder?.type === 'privacy';
   
   // 文件夹列表：
-  // 1. 如果在隐私文件夹中或编辑模式：显示所有非url类型的文件夹（包括隐私文件夹）
-  // 2. 否则（新建模式且不在隐私文件夹中）：只显示普通文件夹（不包括隐私文件夹）
+  // 1. 如果在隐私文件夹中新建记事：只显示当前隐私文件夹（不能选择其他分类）
+  // 2. 如果在隐私文件夹中编辑记事：显示所有非url类型的文件夹（允许移动到其他文件夹）
+  // 3. 否则（新建模式且不在隐私文件夹中）：只显示普通文件夹（不包括隐私文件夹）
   const folders = useMemo(() => {
     const availableFolders = allFolders.filter((f) => f.type !== 'url' && !f.isDeleted);
-    if (isInPrivacyFolder || isEditMode) {
-      // 在隐私文件夹中或编辑模式：显示所有非url类型的文件夹（包括隐私文件夹）
+    if (isInPrivacyFolder && !isEditMode) {
+      // 在隐私文件夹中新建记事：只显示当前隐私文件夹（不能选择其他分类）
+      return availableFolders.filter((f) => f.id === folderIdFromUrl);
+    } else if (isInPrivacyFolder && isEditMode) {
+      // 在隐私文件夹中编辑记事：显示所有非url类型的文件夹（允许移动到其他文件夹）
       return availableFolders;
     } else {
       // 新建模式且不在隐私文件夹中：只显示普通文件夹
       return availableFolders.filter((f) => f.type !== 'privacy');
     }
-  }, [allFolders, isInPrivacyFolder, isEditMode]);
+  }, [allFolders, isInPrivacyFolder, isEditMode, folderIdFromUrl]);
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -55,6 +62,29 @@ const NewNotePage = () => {
   const [originalContent, setOriginalContent] = useState('');
   const [originalFolderId, setOriginalFolderId] = useState<string | undefined>(undefined);
   
+  // 禁用背景滚动，确保全屏页面体验
+  useEffect(() => {
+    // 保存原始样式
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalWidth = document.body.style.width;
+    const originalHeight = document.body.style.height;
+    
+    // 禁用背景滚动
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    
+    // 清理函数：恢复原始样式
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = originalWidth;
+      document.body.style.height = originalHeight;
+    };
+  }, []);
+
   // 如果是编辑模式，加载记事内容
   useEffect(() => {
     if (noteIdFromUrl) {
@@ -104,11 +134,16 @@ const NewNotePage = () => {
   }, [noteIdFromUrl, getAllNotes, folderIdFromUrl]);
   
   // 当URL参数变化时，更新selectedFolderId
+  // 在隐私文件夹中新建记事时，强制设置为隐私文件夹ID，不能更改
   useEffect(() => {
     if (folderIdFromUrl && !isEditMode) {
       setSelectedFolderId(folderIdFromUrl);
     }
-  }, [folderIdFromUrl, isEditMode]);
+    // 在隐私文件夹中新建记事时，确保始终使用隐私文件夹ID（防止用户通过其他方式修改）
+    if (isInPrivacyFolder && !isEditMode && folderIdFromUrl) {
+      setSelectedFolderId(folderIdFromUrl);
+    }
+  }, [folderIdFromUrl, isEditMode, isInPrivacyFolder]);
 
   // 移动端：确保光标可见的辅助函数
   const handleCursorScroll = useCallback(() => {
@@ -237,15 +272,30 @@ const NewNotePage = () => {
       <div className="note-editor-wrapper" ref={wrapperRef}>
         <div className="note-editor">
           <div className="page-header-row">
-            <button className="header-back" onClick={() => navigate(-1)}>
-              取消
+            <button
+              className="header-back"
+              onClick={() => {
+                // 如果是编辑模式，且内容为空，且原始内容也为空，删除这个空白记事
+                if (isEditMode && noteIdFromUrl) {
+                  const isEmpty = !title.trim() && !content.trim();
+                  const wasEmpty = !originalTitle.trim() && !originalContent.trim();
+                  if (isEmpty && wasEmpty) {
+                    // 删除空白记事
+                    deleteNote(noteIdFromUrl);
+                  }
+                }
+                navigate(-1);
+              }}
+            >
+              {t('cancel')}
             </button>
             <select
               className="header-folder-select"
               value={selectedFolderId || ''}
               onChange={(e) => setSelectedFolderId(e.target.value || undefined)}
+              disabled={isInPrivacyFolder && !isEditMode} // 在隐私文件夹中新建记事时禁用选择
             >
-              <option value="">全部</option>
+              <option value="">{t('all')}</option>
               {folders.map((folder) => (
                 <option key={folder.id} value={folder.id}>
                   {folder.name}
@@ -257,7 +307,7 @@ const NewNotePage = () => {
               onClick={handleSave}
               disabled={(!content.trim() && !title.trim()) || !hasChanges}
             >
-              保存
+              {t('save')}
             </button>
           </div>
 
@@ -266,7 +316,7 @@ const NewNotePage = () => {
               ref={titleRef}
               type="text"
               className="note-title-input"
-              placeholder="无标题"
+              placeholder={t('noTitle')}
               value={title}
               maxLength={10}
               onFocus={() => {

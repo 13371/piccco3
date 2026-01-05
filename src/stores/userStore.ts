@@ -9,6 +9,16 @@ import { useSettingsStore } from './settingsStore';
 // 辅助函数：动态获取API地址
 const getApiUrl = (endpoint: string) => {
   const baseUrl = getApiBaseUrlDynamic();
+  // 统一使用 v1 版本（推荐版本），确保API路径一致性
+  // 如果endpoint已经包含 /v1/，不再添加
+  if (endpoint.includes('/v1/')) {
+    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  }
+  // 如果endpoint是 /auth/、/admin/、/message/、/data/ 开头，添加 /v1 前缀
+  if (endpoint.startsWith('/auth/') || endpoint.startsWith('/admin/') || 
+      endpoint.startsWith('/message/') || endpoint.startsWith('/data/')) {
+    return `${baseUrl}/v1${endpoint}`;
+  }
   return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 };
 
@@ -389,7 +399,18 @@ export const useUserStore = create<UserState>()(
             return { ok: false, message: data.message || '发送验证码失败' };
           }
 
-          return { ok: true };
+          // 开发模式：如果后端返回了 devCode，在控制台显示
+          if (data.devCode) {
+            console.log('\n========================================');
+            console.log('📧 验证码（开发模式）');
+            console.log('========================================');
+            console.log(`收件人: ${email}`);
+            console.log(`验证码: ${data.devCode}`);
+            console.log('有效期: 10 分钟');
+            console.log('========================================\n');
+          }
+
+          return { ok: true, devCode: data.devCode };
         } catch (e) {
           logger.error('[userStore] send code error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };

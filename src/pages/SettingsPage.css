@@ -1,5 +1,7 @@
 .settings-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度 */
 }
 
 .settings-header {
@@ -16,8 +18,16 @@
 }
 
 .settings-list > * {
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-normal) ease;
+}
+
+.settings-list > *:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .sort-settings-body {
@@ -76,8 +86,8 @@
   padding: 8px 14px;
   border-radius: 12px;
   border: none;
-  background-color: var(--primary-color);
-  color: #fff;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   cursor: pointer;
   font-size: 14px;
 }
@@ -161,7 +171,7 @@
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background-color: #ff4444;
+  background-color: var(--color-red);
   color: #fff;
   cursor: pointer;
   font-size: 12px;
@@ -170,7 +180,8 @@
 }
 
 .sync-reset-button:hover {
-  background-color: #cc0000;
+  background-color: var(--color-red);
+  opacity: 0.8;
 }
 
 .sync-button {
@@ -230,6 +241,28 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .settings-header {
+    margin-bottom: 12px;
+  }
+  
+  .settings-message-box {
+    margin-top: 16px;
+    padding: 12px;
+  }
+  
+  .sync-status-item {
+    padding: 12px;
+    margin-bottom: 6px;
+  }
 }
 
 

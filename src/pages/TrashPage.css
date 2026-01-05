@@ -1,5 +1,7 @@
 .trash-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度 */
 }
 
 .trash-header {
@@ -41,21 +43,28 @@
 
 .batch-restore-btn,
 .batch-delete-btn {
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   cursor: pointer;
   border: none;
   font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast) ease;
 }
 
 .batch-restore-btn {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
 }
 
 .batch-restore-btn:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.batch-restore-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .batch-delete-btn {
@@ -64,7 +73,12 @@
 }
 
 .batch-delete-btn:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.batch-delete-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .trash-list {
@@ -75,10 +89,17 @@
 
 .trash-item {
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   overflow: hidden;
   background-color: var(--bg-color);
-  transition: background-color 0.2s;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-normal) ease;
+}
+
+.trash-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
 }
 
 .trash-item.selected {
@@ -128,8 +149,8 @@
 }
 
 .restore-btn {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
 }
 
 .restore-btn:hover {
@@ -143,6 +164,29 @@
 
 .delete-btn:hover {
   opacity: 0.9;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .trash-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .trash-header {
+    margin-bottom: 12px;
+  }
+  
+  .trash-toolbar {
+    padding: 10px 0;
+    margin-bottom: 10px;
+  }
+  
+  .batch-restore-btn,
+  .batch-delete-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
 }
 
 

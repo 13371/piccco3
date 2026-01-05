@@ -1,5 +1,7 @@
 .url-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
+  background: var(--page-bg);
+  min-height: calc(100vh - 140px); /* 减少最小高度 */
 }
 
 .folder-header-row {
@@ -35,22 +37,25 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   background-color: var(--bg-color);
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal) ease;
 }
 
 .folder-tab:hover {
   background-color: var(--hover-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
 }
 
 .folder-tab.active {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   border-color: var(--primary-color);
 }
 
@@ -62,16 +67,19 @@
 
 .add-url-button {
   width: 100%;
-  padding: 12px;
-  background-color: var(--primary-color);
-  color: white;
-  border-radius: 12px;
+  padding: 14px;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border-radius: var(--radius-card);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 16px;
   display: flex;
   align-items: center;
+  box-shadow: var(--shadow-card);
+  border: none;
+  transition: all var(--transition-normal) ease;
   justify-content: center;
   gap: 8px;
   text-align: center;
@@ -83,7 +91,12 @@
 }
 
 .add-url-button:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.add-url-button:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .form-group {
@@ -200,8 +213,8 @@
 
 .form-button {
   padding: 12px;
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
@@ -210,5 +223,27 @@
 
 .form-button:hover {
   opacity: 0.9;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .url-page {
+    padding: 12px 12px 8px 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .folder-selector {
+    margin-bottom: 12px;
+  }
+  
+  .add-url-button {
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+  
+  .folder-item-wrapper {
+    margin-bottom: 6px;
+  }
 }
 

@@ -23,7 +23,20 @@ const authenticateToken = (req, res, next) => {
       return res.status(403).json({ message: 'Token无效或已过期' });
     }
     req.user = user;
+    req.token = token; // 保存token，用于设备管理
     next();
+    
+    // 异步更新设备活动时间（不阻塞请求）
+    if (user && user.id) {
+      setImmediate(() => {
+        try {
+          const { updateDeviceActivity } = require('../store/deviceStore');
+          updateDeviceActivity(user.id, token);
+        } catch (e) {
+          // 忽略错误，设备管理是可选功能
+        }
+      });
+    }
   });
 };
 

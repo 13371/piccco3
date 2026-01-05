@@ -4,6 +4,8 @@ import { Folder, Note, Url, TrashItem, FolderColor } from '../types';
 import { useUserStore } from './userStore';
 import { API_BASE_URL } from '../config/api';
 import { syncQueue } from '../utils/syncQueue';
+import { retryQueue } from '../utils/retryQueue';
+import { createDebouncedSync, updateLocalVersion, markAsSynced } from '../utils/syncManager';
 import { encryptPrivacyPassword, verifyPrivacyPassword } from '../utils/privacyPassword';
 import { logger } from '../utils/logger';
 
@@ -15,6 +17,10 @@ interface DataState {
   
   // 已永久删除的文件夹ID列表（永远不会被恢复）
   permanentlyDeletedFolderIds: Set<string>;
+  // 已永久删除的笔记ID列表（永远不会被恢复）
+  permanentlyDeletedNoteIds: Set<string>;
+  // 已永久删除的网址ID列表（永远不会被恢复）
+  permanentlyDeletedUrlIds: Set<string>;
   
   // 同步状态
   pendingChanges: boolean;
@@ -25,6 +31,12 @@ interface DataState {
   syncSuccess: boolean; // 最近一次同步是否成功
   syncRetryCount: number; // 同步重试次数
   lastRetryTime: number | null; // 最后重试时间
+  lastSyncedSnapshot: { // 上次同步的数据快照（用于增量同步）
+    folders: Map<string, Folder>;
+    notes: Map<string, Note>;
+    urls: Map<string, Url>;
+    homeContent: string;
+  } | null;
   
   // 文件夹操作
   addFolder: (name: string, type: Folder['type'], color?: FolderColor, password?: string) => string;
@@ -243,28 +255,34 @@ function mergeArrays<T extends { id: string; updatedAt?: number; isDeleted?: boo
   return Array.from(map.values());
 }
 
-// 防抖同步函数（优化：缩短延迟时间，确保数据变动后快速同步）
-let uploadSyncTimer: ReturnType<typeof setTimeout> | null = null;
+// 防抖同步函数（优化：800-1200ms 防抖，随机延迟避免并发）
+let debouncedSyncFn: (() => void) | null = null;
 
-function debouncedUploadSync(syncFn: () => void, delay: number = 500) {
-  if (uploadSyncTimer) {
-    clearTimeout(uploadSyncTimer);
+function debouncedUploadSync(syncFn: () => void) {
+  if (!debouncedSyncFn) {
+    debouncedSyncFn = createDebouncedSync(syncFn, 800, 1200);
   }
-  uploadSyncTimer = setTimeout(() => {
-    syncFn();
-    uploadSyncTimer = null;
-  }, delay);
+  debouncedSyncFn();
 }
 
 // 立即同步函数（用于删除等关键操作）
+// 优化：添加延迟机制，避免批量删除时多次同步请求造成的竞态条件
+let immediateSyncTimeoutId: ReturnType<typeof setTimeout> | null = null;
 function immediateSync(syncFn: () => void) {
-  // 取消任何待执行的防抖同步
-  if (uploadSyncTimer) {
-    clearTimeout(uploadSyncTimer);
-    uploadSyncTimer = null;
+  // 重置防抖函数，取消任何待执行的防抖同步
+  debouncedSyncFn = null;
+  
+  // 如果已有待执行的立即同步，取消它（批量删除时，只执行最后一次同步）
+  if (immediateSyncTimeoutId) {
+    clearTimeout(immediateSyncTimeoutId);
+    immediateSyncTimeoutId = null;
   }
-  // 立即执行同步
-  syncFn();
+  
+  // 延迟50ms执行同步，这样可以合并批量删除操作
+  immediateSyncTimeoutId = setTimeout(() => {
+    immediateSyncTimeoutId = null;
+    syncFn();
+  }, 50);
 }
 
 // 初始化默认文件夹
@@ -330,6 +348,8 @@ export const useDataStore = create<DataState>()(
       urls: [],
       trash: [], // 新用户回收站默认为空
       permanentlyDeletedFolderIds: new Set<string>(),
+      permanentlyDeletedNoteIds: new Set<string>(),
+      permanentlyDeletedUrlIds: new Set<string>(),
       
       addFolder: (name, type, color = 'blue', password) => {
         if (checkBanned()) return '';
@@ -362,14 +382,15 @@ export const useDataStore = create<DataState>()(
           password: encryptedPassword,
           isDeleted: false,
           deletedAt: null,
+          version: 1, // 新创建的文件夹版本号为1
         };
         set((state) => ({
           folders: [...state.folders, newFolder],
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
         
         return id;
       },
@@ -397,14 +418,22 @@ export const useDataStore = create<DataState>()(
         if (updates.deletedAt !== undefined) processedUpdates.deletedAt = updates.deletedAt;
         
         set((state) => ({
-          folders: state.folders.map((f) =>
-            f.id === id ? { ...f, ...processedUpdates, updatedAt: Date.now() } : f
-          ),
+          folders: state.folders.map((f) => {
+            if (f.id === id) {
+              // 使用版本控制更新
+              const updated = updateLocalVersion({
+                ...f,
+                ...processedUpdates,
+              });
+              return updated;
+            }
+            return f;
+          }),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       canDeleteFolder: (id) => {
@@ -461,19 +490,43 @@ export const useDataStore = create<DataState>()(
         // 先更新本地状态，然后尝试同步到后端
         const now = Date.now();
         set((state) => {
-          // 软删除文件夹
+          // 软删除文件夹（版本号递增）
           const updatedFolders = state.folders.map((f) =>
-            f.id === id ? { ...f, isDeleted: true, deletedAt: now, updatedAt: now } : f
+            f.id === id 
+              ? { 
+                  ...f, 
+                  isDeleted: true, 
+                  deletedAt: now, 
+                  updatedAt: now,
+                  version: ((f.version || 0) + 1), // 删除操作也增加版本号
+                } 
+              : f
           );
           
-          // 软删除文件夹内的所有笔记
+          // 软删除文件夹内的所有笔记（版本号递增）
           const updatedNotes = state.notes.map((n) =>
-            n.folderId === id && !n.isDeleted ? { ...n, isDeleted: true, deletedAt: now, updatedAt: now } : n
+            n.folderId === id && !n.isDeleted 
+              ? { 
+                  ...n, 
+                  isDeleted: true, 
+                  deletedAt: now, 
+                  updatedAt: now,
+                  version: ((n.version || 0) + 1), // 删除操作也增加版本号
+                } 
+              : n
           );
           
-          // 软删除文件夹内的所有网址
+          // 软删除文件夹内的所有网址（版本号递增）
           const updatedUrls = state.urls.map((u) =>
-            u.folderId === id && !u.isDeleted ? { ...u, isDeleted: true, deletedAt: now, updatedAt: now } : u
+            u.folderId === id && !u.isDeleted 
+              ? { 
+                  ...u, 
+                  isDeleted: true, 
+                  deletedAt: now, 
+                  updatedAt: now,
+                  version: ((u.version || 0) + 1), // 删除操作也增加版本号
+                } 
+              : u
           );
           
           return {
@@ -567,9 +620,9 @@ export const useDataStore = create<DataState>()(
           ),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       changeFolderColor: (id, color) => {
@@ -580,9 +633,9 @@ export const useDataStore = create<DataState>()(
           ),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
 
       reorderFolder: (dragId, targetId) => {
@@ -601,9 +654,9 @@ export const useDataStore = create<DataState>()(
           return { folders: [...folders] };
         });
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       addNote: (content, folderId) => {
@@ -618,14 +671,15 @@ export const useDataStore = create<DataState>()(
           updatedAt: Date.now(),
           isDeleted: false,
           deletedAt: null,
+          version: 1, // 新创建的项版本号为1
         };
         set((state) => ({
           notes: [...state.notes, newNote],
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
         
         return id;
       },
@@ -633,14 +687,23 @@ export const useDataStore = create<DataState>()(
       updateNote: (id, content, folderId) => {
         if (checkBanned()) return;
         set((state) => ({
-          notes: state.notes.map((n) =>
-            n.id === id ? { ...n, content, folderId, updatedAt: Date.now() } : n
-          ),
+          notes: state.notes.map((n) => {
+            if (n.id === id) {
+              // 使用版本控制更新
+              const updated = updateLocalVersion({
+                ...n,
+                content,
+                folderId,
+              });
+              return updated;
+            }
+            return n;
+          }),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖 800-1200ms）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       deleteNote: (id) => {
@@ -656,7 +719,13 @@ export const useDataStore = create<DataState>()(
         set((state) => ({
           notes: state.notes.map((n) =>
             n.id === id
-              ? { ...n, isDeleted: true, deletedAt: now, updatedAt: now }
+              ? { 
+                  ...n, 
+                  isDeleted: true, 
+                  deletedAt: now, 
+                  updatedAt: now,
+                  version: ((n.version || 0) + 1), // 删除操作也增加版本号
+                }
               : n
           ),
         }));
@@ -706,39 +775,111 @@ export const useDataStore = create<DataState>()(
         if (checkBanned()) return;
         set((state) => ({
           notes: state.notes.map((n) =>
-            n.id === id ? { ...n, isStarred: !n.isStarred, updatedAt: Date.now() } : n
+            n.id === id 
+              ? { 
+                  ...n, 
+                  isStarred: !n.isStarred, 
+                  updatedAt: Date.now(),
+                  version: ((n.version || 0) + 1), // 星标操作也增加版本号
+                } 
+              : n
           ),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       addUrl: (title, url, folderId) => {
         if (checkBanned()) return '';
         const id = `url_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // 自动添加 http:// 或 https:// 前缀
+        const normalizedUrl = url.startsWith('http://') || url.startsWith('https://') 
+          ? url 
+          : `https://${url}`;
+        
         const newUrl: Url = {
           id,
           title,
-          url: url.startsWith('http') ? url : `https://${url}`,
+          url: normalizedUrl,
           folderId,
           isStarred: false,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           isDeleted: false,
           deletedAt: null,
+          version: 1, // 新创建的URL版本号为1
         };
         set((state) => ({
           urls: [...state.urls, newUrl],
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
         
         return id;
       },
+      
+      updateUrl: (id, updates) => {
+        if (checkBanned()) return;
+        set((state) => ({
+          urls: state.urls.map((u) => {
+            if (u.id === id) {
+              // 使用版本控制更新
+              const updated = updateLocalVersion({
+                ...u,
+                ...updates,
+              });
+              return updated;
+            }
+            return u;
+          }),
+        }));
+        
+        // 标记有变更，自动同步到服务器（防抖1秒）
+        set({ pendingChanges: true });
+        debouncedUploadSync(() => get().syncDataToServer());
+      },
+      
+      deleteUrl: (id) => {
+        if (checkBanned()) return;
+        const deletedUrl = get().urls.find((u) => u.id === id);
+        set((state) => ({
+          urls: state.urls.map((u) =>
+            u.id === id
+              ? {
+                  ...u,
+                  isDeleted: true,
+                  deletedAt: Date.now(),
+                  updatedAt: Date.now(),
+                  version: ((u.version || 0) + 1), // 删除操作也增加版本号
+                }
+              : u
+          ),
+        }));
+        
+        // 标记有变更，立即同步到服务器（删除操作需要立即同步）
+        set({ pendingChanges: true });
+        immediateSync(() => {
+          get().syncDataToServer(true);
+        });
+      },
+      
+      toggleUrlStar: (id) => {
+        if (checkBanned()) return;
+        set((state) => ({
+          urls: state.urls.map((u) =>
+            u.id === id ? { ...u, isStarred: !u.isStarred, updatedAt: Date.now(), version: ((u.version || 0) + 1) } : u
+          ),
+        }));
+        
+        // 标记有变更，自动同步到服务器（防抖1秒）
+        set({ pendingChanges: true });
+        debouncedUploadSync(() => get().syncDataToServer());
+      },
+      
       
       updateUrl: (id, updates) => {
         if (checkBanned()) return;
@@ -759,9 +900,9 @@ export const useDataStore = create<DataState>()(
           ),
         }));
         
-        // 标记有变更，自动同步到服务器（优化：缩短防抖时间，快速同步）
+        // 标记有变更，自动同步到服务器（防抖1秒）
         set({ pendingChanges: true });
-        debouncedUploadSync(() => get().syncDataToServer(), 500);
+        debouncedUploadSync(() => get().syncDataToServer());
       },
       
       deleteUrl: (id) => {
@@ -776,7 +917,15 @@ export const useDataStore = create<DataState>()(
         const now = Date.now();
         set((state) => ({
           urls: state.urls.map((u) =>
-            u.id === id ? { ...u, isDeleted: true, deletedAt: now, updatedAt: now } : u
+            u.id === id 
+              ? { 
+                  ...u, 
+                  isDeleted: true, 
+                  deletedAt: now, 
+                  updatedAt: now,
+                  version: ((u.version || 0) + 1), // 删除操作也增加版本号
+                } 
+              : u
           ),
         }));
         
@@ -976,13 +1125,51 @@ export const useDataStore = create<DataState>()(
               permanentlyDeletedFolderIds: newPermanentlyDeletedIds,
             };
           } else if (deletedNote) {
-            // 永久删除笔记：从 notes 中物理移除
+            // 永久删除笔记：从 notes 中物理移除，并添加到永久删除列表
             const newNotes = state.notes.filter((n) => n.id !== id);
-            return { notes: newNotes };
+            
+            // 确保 permanentlyDeletedNoteIds 是 Set 类型
+            let currentDeletedNoteIds: Set<string>;
+            if (state.permanentlyDeletedNoteIds instanceof Set) {
+              currentDeletedNoteIds = state.permanentlyDeletedNoteIds;
+            } else if (Array.isArray(state.permanentlyDeletedNoteIds)) {
+              currentDeletedNoteIds = new Set(state.permanentlyDeletedNoteIds);
+            } else {
+              currentDeletedNoteIds = new Set<string>();
+            }
+            
+            const newPermanentlyDeletedNoteIds = new Set(currentDeletedNoteIds);
+            newPermanentlyDeletedNoteIds.add(id);
+            
+            logger.log('[dataStore] 将笔记添加到永久删除列表:', id);
+            
+            return { 
+              notes: newNotes,
+              permanentlyDeletedNoteIds: newPermanentlyDeletedNoteIds,
+            };
           } else if (deletedUrl) {
-            // 永久删除网址：从 urls 中物理移除
+            // 永久删除网址：从 urls 中物理移除，并添加到永久删除列表
             const newUrls = state.urls.filter((u) => u.id !== id);
-            return { urls: newUrls };
+            
+            // 确保 permanentlyDeletedUrlIds 是 Set 类型
+            let currentDeletedUrlIds: Set<string>;
+            if (state.permanentlyDeletedUrlIds instanceof Set) {
+              currentDeletedUrlIds = state.permanentlyDeletedUrlIds;
+            } else if (Array.isArray(state.permanentlyDeletedUrlIds)) {
+              currentDeletedUrlIds = new Set(state.permanentlyDeletedUrlIds);
+            } else {
+              currentDeletedUrlIds = new Set<string>();
+            }
+            
+            const newPermanentlyDeletedUrlIds = new Set(currentDeletedUrlIds);
+            newPermanentlyDeletedUrlIds.add(id);
+            
+            logger.log('[dataStore] 将网址添加到永久删除列表:', id);
+            
+            return { 
+              urls: newUrls,
+              permanentlyDeletedUrlIds: newPermanentlyDeletedUrlIds,
+            };
           }
           
           return {};
@@ -1124,6 +1311,7 @@ export const useDataStore = create<DataState>()(
       syncSuccess: false,
       syncRetryCount: 0,
       lastRetryTime: null as number | null,
+      lastSyncedSnapshot: null as { folders: Map<string, Folder>; notes: Map<string, Note>; urls: Map<string, Url>; homeContent: string } | null,
       
       /**
        * 从服务器同步数据到本地
@@ -1183,7 +1371,7 @@ export const useDataStore = create<DataState>()(
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
           
           try {
-            const res = await fetch(`${API_BASE_URL}/data/sync`, {
+            const res = await fetch(`${API_BASE_URL}/v1/data/sync`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
               },
@@ -1217,6 +1405,28 @@ export const useDataStore = create<DataState>()(
               if (result.success && result.data) {
                 const serverData = result.data;
                 
+                // 记录服务器返回的永久删除列表（用于调试）
+                logger.log('[dataStore] 服务器返回的永久删除列表:', {
+                  permanentlyDeletedFolderIds: {
+                    type: typeof serverData.permanentlyDeletedFolderIds,
+                    isArray: Array.isArray(serverData.permanentlyDeletedFolderIds),
+                    value: serverData.permanentlyDeletedFolderIds,
+                    length: Array.isArray(serverData.permanentlyDeletedFolderIds) ? serverData.permanentlyDeletedFolderIds.length : null,
+                  },
+                  permanentlyDeletedNoteIds: {
+                    type: typeof serverData.permanentlyDeletedNoteIds,
+                    isArray: Array.isArray(serverData.permanentlyDeletedNoteIds),
+                    value: serverData.permanentlyDeletedNoteIds,
+                    length: Array.isArray(serverData.permanentlyDeletedNoteIds) ? serverData.permanentlyDeletedNoteIds.length : null,
+                  },
+                  permanentlyDeletedUrlIds: {
+                    type: typeof serverData.permanentlyDeletedUrlIds,
+                    isArray: Array.isArray(serverData.permanentlyDeletedUrlIds),
+                    value: serverData.permanentlyDeletedUrlIds,
+                    length: Array.isArray(serverData.permanentlyDeletedUrlIds) ? serverData.permanentlyDeletedUrlIds.length : null,
+                  },
+                });
+                
               // 验证数据格式
               if (!Array.isArray(serverData.folders) || 
                   !Array.isArray(serverData.notes) || 
@@ -1226,9 +1436,28 @@ export const useDataStore = create<DataState>()(
                 return;
               }
               
+              // 同步首页内容
+              if (serverData.homeContent !== undefined) {
+                const { useHomeContentStore } = await import('./homeContentStore');
+                useHomeContentStore.getState().setContent(serverData.homeContent || '');
+              }
+              
               // 合并服务器数据和本地数据
-              // 使用服务器数据为主，但保留本地未同步的数据
+              // 强制要求：一切数据以服务器为准
               const localData = get();
+              
+              // 记录同步前的数据统计（用于调试）
+              const localFoldersCount = localData.folders.length;
+              const localNotesCount = localData.notes.length;
+              const localUrlsCount = localData.urls.length;
+              const serverFoldersCount = (serverData.folders || []).length;
+              const serverNotesCount = (serverData.notes || []).length;
+              const serverUrlsCount = (serverData.urls || []).length;
+              
+              logger.log('[dataStore] 同步前数据统计:', {
+                local: { folders: localFoldersCount, notes: localNotesCount, urls: localUrlsCount },
+                server: { folders: serverFoldersCount, notes: serverNotesCount, urls: serverUrlsCount },
+              });
               
               // 基于 isDeleted 字段获取本地已删除的文件夹ID列表
               const localDeletedFolderIds = new Set<string>(
@@ -1254,6 +1483,30 @@ export const useDataStore = create<DataState>()(
                 permanentlyDeletedIds = new Set(localData.permanentlyDeletedFolderIds);
               } else {
                 permanentlyDeletedIds = new Set<string>();
+              }
+              
+              // 合并服务器的永久删除列表（重要：服务器返回的永久删除列表是权威的）
+              // 修复：即使服务器返回 null 或 undefined，也要正确处理（转换为空数组）
+              const serverPermanentlyDeletedFolderIds = Array.isArray(serverData.permanentlyDeletedFolderIds) 
+                ? serverData.permanentlyDeletedFolderIds 
+                : (serverData.permanentlyDeletedFolderIds === null || serverData.permanentlyDeletedFolderIds === undefined ? [] : []);
+              
+              if (serverPermanentlyDeletedFolderIds.length > 0) {
+                const beforeMerge = permanentlyDeletedIds.size;
+                serverPermanentlyDeletedFolderIds.forEach((id: string) => {
+                  if (id && typeof id === 'string') {
+                    permanentlyDeletedIds.add(id);
+                  }
+                });
+                logger.log('[dataStore] 合并服务器的永久删除文件夹列表:', {
+                  serverCount: serverPermanentlyDeletedFolderIds.length,
+                  beforeMerge,
+                  afterMerge: permanentlyDeletedIds.size,
+                  added: permanentlyDeletedIds.size - beforeMerge,
+                  serverIds: serverPermanentlyDeletedFolderIds,
+                });
+              } else if (serverData.permanentlyDeletedFolderIds === null || serverData.permanentlyDeletedFolderIds === undefined) {
+                logger.warn('[dataStore] 服务器返回的永久删除文件夹列表为 null 或 undefined，使用空数组');
               }
               
               // 合并所有已删除的文件夹ID（包括永久删除的）
@@ -1312,9 +1565,121 @@ export const useDataStore = create<DataState>()(
                   deleted: mergedFolders.filter((f) => f.isDeleted).length,
                 });
                 
-                // 合并笔记和网址（一切以服务器为准）
-                const mergedNotes = mergeArrays(localData.notes, serverData.notes || [], undefined, true);
-                const mergedUrls = mergeArrays(localData.urls, serverData.urls || [], undefined, true);
+                // 获取永久删除的笔记和网址ID列表
+                let permanentlyDeletedNoteIds: Set<string>;
+                if (localData.permanentlyDeletedNoteIds instanceof Set) {
+                  permanentlyDeletedNoteIds = localData.permanentlyDeletedNoteIds;
+                } else if (Array.isArray(localData.permanentlyDeletedNoteIds)) {
+                  permanentlyDeletedNoteIds = new Set(localData.permanentlyDeletedNoteIds);
+                } else {
+                  permanentlyDeletedNoteIds = new Set<string>();
+                }
+                
+                // 合并服务器的永久删除笔记列表（重要：服务器返回的永久删除列表是权威的）
+                // 修复：即使服务器返回 null 或 undefined，也要正确处理（转换为空数组）
+                const serverPermanentlyDeletedNoteIds = Array.isArray(serverData.permanentlyDeletedNoteIds) 
+                  ? serverData.permanentlyDeletedNoteIds 
+                  : (serverData.permanentlyDeletedNoteIds === null || serverData.permanentlyDeletedNoteIds === undefined ? [] : []);
+                
+                if (serverPermanentlyDeletedNoteIds.length > 0) {
+                  const beforeMerge = permanentlyDeletedNoteIds.size;
+                  serverPermanentlyDeletedNoteIds.forEach((id: string) => {
+                    if (id && typeof id === 'string') {
+                      permanentlyDeletedNoteIds.add(id);
+                    }
+                  });
+                  logger.log('[dataStore] 合并服务器的永久删除笔记列表:', {
+                    serverCount: serverPermanentlyDeletedNoteIds.length,
+                    beforeMerge,
+                    afterMerge: permanentlyDeletedNoteIds.size,
+                    added: permanentlyDeletedNoteIds.size - beforeMerge,
+                    serverIds: serverPermanentlyDeletedNoteIds,
+                  });
+                } else if (serverData.permanentlyDeletedNoteIds === null || serverData.permanentlyDeletedNoteIds === undefined) {
+                  logger.warn('[dataStore] 服务器返回的永久删除笔记列表为 null 或 undefined，使用空数组');
+                }
+                
+                let permanentlyDeletedUrlIds: Set<string>;
+                if (localData.permanentlyDeletedUrlIds instanceof Set) {
+                  permanentlyDeletedUrlIds = localData.permanentlyDeletedUrlIds;
+                } else if (Array.isArray(localData.permanentlyDeletedUrlIds)) {
+                  permanentlyDeletedUrlIds = new Set(localData.permanentlyDeletedUrlIds);
+                } else {
+                  permanentlyDeletedUrlIds = new Set<string>();
+                }
+                
+                // 合并服务器的永久删除网址列表（重要：服务器返回的永久删除列表是权威的）
+                // 修复：即使服务器返回 null 或 undefined，也要正确处理（转换为空数组）
+                const serverPermanentlyDeletedUrlIds = Array.isArray(serverData.permanentlyDeletedUrlIds) 
+                  ? serverData.permanentlyDeletedUrlIds 
+                  : (serverData.permanentlyDeletedUrlIds === null || serverData.permanentlyDeletedUrlIds === undefined ? [] : []);
+                
+                if (serverPermanentlyDeletedUrlIds.length > 0) {
+                  const beforeMerge = permanentlyDeletedUrlIds.size;
+                  serverPermanentlyDeletedUrlIds.forEach((id: string) => {
+                    if (id && typeof id === 'string') {
+                      permanentlyDeletedUrlIds.add(id);
+                    }
+                  });
+                  logger.log('[dataStore] 合并服务器的永久删除网址列表:', {
+                    serverCount: serverPermanentlyDeletedUrlIds.length,
+                    beforeMerge,
+                    afterMerge: permanentlyDeletedUrlIds.size,
+                    added: permanentlyDeletedUrlIds.size - beforeMerge,
+                    serverIds: serverPermanentlyDeletedUrlIds,
+                  });
+                } else if (serverData.permanentlyDeletedUrlIds === null || serverData.permanentlyDeletedUrlIds === undefined) {
+                  logger.warn('[dataStore] 服务器返回的永久删除网址列表为 null 或 undefined，使用空数组');
+                }
+                
+                // 重要修复：在合并之前，先从服务器数据和本地数据中过滤掉永久删除的项
+                // 这样可以防止永久删除的项在后续同步中被恢复
+                const serverNotesBeforeFilter = (serverData.notes || []).length;
+                const localNotesBeforeFilter = localData.notes.length;
+                const serverUrlsBeforeFilter = (serverData.urls || []).length;
+                const localUrlsBeforeFilter = localData.urls.length;
+                
+                const serverNotesFiltered = (serverData.notes || []).filter(
+                  (note: Note) => !permanentlyDeletedNoteIds.has(note.id)
+                );
+                const localNotesFiltered = localData.notes.filter(
+                  (note: Note) => !permanentlyDeletedNoteIds.has(note.id)
+                );
+                const serverUrlsFiltered = (serverData.urls || []).filter(
+                  (url: Url) => !permanentlyDeletedUrlIds.has(url.id)
+                );
+                const localUrlsFiltered = localData.urls.filter(
+                  (url: Url) => !permanentlyDeletedUrlIds.has(url.id)
+                );
+                
+                // 记录过滤结果（用于调试）
+                const serverNotesFilteredCount = serverNotesBeforeFilter - serverNotesFiltered.length;
+                const localNotesFilteredCount = localNotesBeforeFilter - localNotesFiltered.length;
+                const serverUrlsFilteredCount = serverUrlsBeforeFilter - serverUrlsFiltered.length;
+                const localUrlsFilteredCount = localUrlsBeforeFilter - localUrlsFiltered.length;
+                
+                if (serverNotesFilteredCount > 0 || localNotesFilteredCount > 0 || serverUrlsFilteredCount > 0 || localUrlsFilteredCount > 0 || permanentlyDeletedNoteIds.size > 0 || permanentlyDeletedUrlIds.size > 0) {
+                  logger.log('[dataStore] 合并前过滤永久删除的项:', {
+                    notes: { server: { before: serverNotesBeforeFilter, after: serverNotesFiltered.length, filtered: serverNotesFilteredCount }, local: { before: localNotesBeforeFilter, after: localNotesFiltered.length, filtered: localNotesFilteredCount } },
+                    urls: { server: { before: serverUrlsBeforeFilter, after: serverUrlsFiltered.length, filtered: serverUrlsFilteredCount }, local: { before: localUrlsBeforeFilter, after: localUrlsFiltered.length, filtered: localUrlsFilteredCount } },
+                    permanentlyDeletedNoteIds: { size: permanentlyDeletedNoteIds.size, list: Array.from(permanentlyDeletedNoteIds).slice(0, 10) },
+                    permanentlyDeletedUrlIds: { size: permanentlyDeletedUrlIds.size, list: Array.from(permanentlyDeletedUrlIds).slice(0, 10) },
+                  });
+                }
+                
+                // 合并笔记和网址（一切以服务器为准），但排除永久删除的项
+                const mergedNotes = mergeArrays(
+                  localNotesFiltered, 
+                  serverNotesFiltered, 
+                  permanentlyDeletedNoteIds, // 传入永久删除的笔记ID集合（双重保险）
+                  true
+                );
+                const mergedUrls = mergeArrays(
+                  localUrlsFiltered, 
+                  serverUrlsFiltered, 
+                  permanentlyDeletedUrlIds, // 传入永久删除的网址ID集合（双重保险）
+                  true
+                );
                 
                 // 检查是否有重复的 id（确保 id 唯一性）
                 const folderIds = new Set<string>();
@@ -1403,21 +1768,23 @@ export const useDataStore = create<DataState>()(
                   });
                 }
                 
-                // 最终验证：确保合并后的 folders 中不包含任何已删除的文件夹
+                // 最终验证：确保合并后的 folders 中不包含任何永久删除的文件夹
                 // 这是最后的防线，防止任何边缘情况
-                // 基于 isDeleted 字段和永久删除列表进行最终过滤
-                const allDeletedIds = new Set<string>([
-                  ...Array.from(allDeletedFolderIds), // 已包含永久删除的文件夹ID
-                  ...Array.from(permanentlyDeletedIds), // 再次确保永久删除的文件夹ID被包含
-                ]);
+                // 基于永久删除列表进行最终过滤
                 
                 // 重要：同步时必须保留所有数据（包括已删除的），以便：
                 // 1. 回收站可以显示（isDeleted = true）
                 // 2. 多设备同步可以正常工作
                 // 3. 列表查询时会自动过滤（isDeleted = false）
-                // 只过滤永久删除的文件夹
+                // 只过滤永久删除的文件夹（双重保险，确保永久删除的文件夹不会被恢复）
                 const finalVerifiedFolders = finalMergedFolders.filter(
-                  (folder: Folder) => !permanentlyDeletedIds.has(folder.id)
+                  (folder: Folder) => {
+                    const isPermanentlyDeleted = permanentlyDeletedIds.has(folder.id);
+                    if (isPermanentlyDeleted) {
+                      logger.warn('[dataStore] 检测到永久删除的文件夹被恢复，强制移除:', folder.id);
+                    }
+                    return !isPermanentlyDeleted;
+                  }
                 );
                 
                 // 检查是否有永久删除的文件夹被恢复
@@ -1473,36 +1840,85 @@ export const useDataStore = create<DataState>()(
                 });
                 
                 // 强制要求：同步逻辑（保留所有数据）
+                // 重要：mergeArrays 已经过滤掉了永久删除的项，但为了安全起见，再次过滤一次
+                // 确保即使 mergeArrays 有遗漏，也不会恢复永久删除的项
+                const finalNotesFiltered = mergedNotes.filter((note: Note) => !permanentlyDeletedNoteIds.has(note.id));
+                const finalUrlsFiltered = mergedUrls.filter((url: Url) => !permanentlyDeletedUrlIds.has(url.id));
+                
+                // 记录被永久删除的项（用于日志）
+                const permanentlyDeletedNotesCount = mergedNotes.length - finalNotesFiltered.length;
+                const permanentlyDeletedUrlsCount = mergedUrls.length - finalUrlsFiltered.length;
+                
+                // 即使过滤数量为0，也输出日志（用于调试永久删除列表）
+                logger.log('[dataStore] 从本地移除服务器已永久删除的项:', {
+                  notes: { filtered: permanentlyDeletedNotesCount, before: mergedNotes.length, after: finalNotesFiltered.length },
+                  urls: { filtered: permanentlyDeletedUrlsCount, before: mergedUrls.length, after: finalUrlsFiltered.length },
+                  permanentlyDeletedNoteIds: { size: permanentlyDeletedNoteIds.size, list: Array.from(permanentlyDeletedNoteIds).slice(0, 10) },
+                  permanentlyDeletedUrlIds: { size: permanentlyDeletedUrlIds.size, list: Array.from(permanentlyDeletedUrlIds).slice(0, 10) },
+                  serverPermanentlyDeletedNoteIds: serverData.permanentlyDeletedNoteIds ? { count: serverData.permanentlyDeletedNoteIds.length, list: Array.isArray(serverData.permanentlyDeletedNoteIds) ? serverData.permanentlyDeletedNoteIds.slice(0, 10) : [] } : null,
+                });
+                
                 // 使用 deduplicateById 确保 id 唯一性
+                const finalFoldersDedup = deduplicateById(finalFolders);
+                const finalNotesDedup = deduplicateById(finalNotesFiltered);
+                const finalUrlsDedup = deduplicateById(finalUrlsFiltered);
+                
+                // 更新同步快照（用于增量同步）
+                const newSnapshot = {
+                  folders: new Map<string, Folder>(finalFoldersDedup.map(f => [f.id, f])),
+                  notes: new Map<string, Note>(finalNotesDedup.map(n => [n.id, n])),
+                  urls: new Map<string, Url>(finalUrlsDedup.map(u => [u.id, u])),
+                  homeContent: serverData.homeContent || '',
+                };
+                
                 set({
-                  folders: deduplicateById(finalFolders), // 包含已删除的文件夹（isDeleted = true），列表查询时会过滤
-                  notes: deduplicateById(mergedNotes), // 包含已删除的笔记（isDeleted = true），列表查询时会过滤
-                  urls: deduplicateById(mergedUrls), // 包含已删除的网址（isDeleted = true），列表查询时会过滤
+                  folders: finalFoldersDedup, // 包含已删除的文件夹（isDeleted = true），列表查询时会过滤
+                  notes: finalNotesDedup, // 包含已删除的笔记（isDeleted = true），列表查询时会过滤
+                  urls: finalUrlsDedup, // 包含已删除的网址（isDeleted = true），列表查询时会过滤
                   trash: [], // 保留 trash 数组（向后兼容），但不再使用
+                  permanentlyDeletedFolderIds: permanentlyDeletedIds, // 更新永久删除的文件夹列表（使用合并后的列表）
+                  permanentlyDeletedNoteIds: permanentlyDeletedNoteIds, // 更新永久删除的笔记列表（使用合并后的列表）
+                  permanentlyDeletedUrlIds: permanentlyDeletedUrlIds, // 更新永久删除的网址列表（使用合并后的列表）
                   lastSyncTime: serverData.lastSyncAt || Date.now(),
                   isDownloading: false,
                   syncError: null,
                   syncSuccess: true,
                   syncRetryCount: 0, // 重置重试计数
                   lastRetryTime: null,
+                  lastSyncedSnapshot: newSnapshot, // 更新同步快照
                 });
                 
                 if (restoredFolders.length > 0) {
                   logger.warn('[dataStore] 已强制恢复', restoredFolders.length, '个已删除文件夹的删除状态');
                 }
                 
+                // 记录同步后的数据统计（用于调试）
+                const finalFoldersCount = finalVerifiedFolders.length;
+                const finalNotesCount = mergedNotes.length;
+                const finalUrlsCount = mergedUrls.length;
+                
                 logger.log('[dataStore] 从服务器同步完成（包含已删除的项）:', {
-                  folders: { total: finalVerifiedFolders.length, deleted: deletedFoldersCount, active: finalVerifiedFolders.length - deletedFoldersCount },
-                  notes: { total: mergedNotes.length, deleted: deletedNotesCount, active: mergedNotes.length - deletedNotesCount },
-                  urls: { total: mergedUrls.length, deleted: deletedUrlsCount, active: mergedUrls.length - deletedUrlsCount },
+                  folders: { total: finalFoldersCount, deleted: deletedFoldersCount, active: finalFoldersCount - deletedFoldersCount },
+                  notes: { total: finalNotesCount, deleted: deletedNotesCount, active: finalNotesCount - deletedNotesCount },
+                  urls: { total: finalUrlsCount, deleted: deletedUrlsCount, active: finalUrlsCount - deletedUrlsCount },
                 });
                 
-                logger.log('[dataStore] 从服务器同步完成:', {
-                  folders: finalVerifiedFolders.length,
-                  notes: mergedNotes.length,
-                  urls: mergedUrls.length,
-                  deletedFolderIds: Array.from(allDeletedIds),
+                logger.log('[dataStore] 同步前后对比:', {
+                  before: { folders: localFoldersCount, notes: localNotesCount, urls: localUrlsCount },
+                  after: { folders: finalFoldersCount, notes: finalNotesCount, urls: finalUrlsCount },
+                  server: { folders: serverFoldersCount, notes: serverNotesCount, urls: serverUrlsCount },
                 });
+                
+                // 如果数据不一致，记录警告
+                if (finalFoldersCount !== serverFoldersCount || 
+                    finalNotesCount !== serverNotesCount || 
+                    finalUrlsCount !== serverUrlsCount) {
+                  logger.warn('[dataStore] ⚠️ 同步后数据数量与服务器不一致:', {
+                    folders: { local: finalFoldersCount, server: serverFoldersCount },
+                    notes: { local: finalNotesCount, server: serverNotesCount },
+                    urls: { local: finalUrlsCount, server: serverUrlsCount },
+                  });
+                }
                 
                 // 3秒后清除成功状态
                 setTimeout(() => {
@@ -1574,6 +1990,81 @@ export const useDataStore = create<DataState>()(
         // 使用同步队列确保操作串行执行
         return syncQueue.add(async () => {
           logger.log('[dataStore] syncQueue 开始执行同步', { isDeleteOperation, pendingChanges: get().pendingChanges });
+          
+          // 检查是否有实际变化（增量同步检测）
+          const state = get();
+          const snapshot = state.lastSyncedSnapshot;
+          
+          // 如果没有快照，说明是首次同步，需要同步
+          if (!snapshot) {
+            logger.log('[dataStore] 首次同步，同步所有数据');
+          } else {
+            // 检查是否有变化
+            let hasChanges = false;
+            
+            // 检查文件夹变化
+            const currentFoldersMap = new Map(state.folders.map(f => [f.id, f]));
+            for (const [id, folder] of currentFoldersMap) {
+              const oldFolder = snapshot.folders.get(id);
+              if (!oldFolder || oldFolder.updatedAt !== folder.updatedAt || oldFolder.isDeleted !== folder.isDeleted) {
+                hasChanges = true;
+                break;
+              }
+            }
+            // 检查是否有新增或删除的文件夹
+            if (!hasChanges) {
+              if (currentFoldersMap.size !== snapshot.folders.size) {
+                hasChanges = true;
+              }
+            }
+            
+            // 检查笔记变化
+            if (!hasChanges) {
+              const currentNotesMap = new Map(state.notes.map(n => [n.id, n]));
+              for (const [id, note] of currentNotesMap) {
+                const oldNote = snapshot.notes.get(id);
+                if (!oldNote || oldNote.updatedAt !== note.updatedAt || oldNote.isDeleted !== note.isDeleted) {
+                  hasChanges = true;
+                  break;
+                }
+              }
+              if (!hasChanges && currentNotesMap.size !== snapshot.notes.size) {
+                hasChanges = true;
+              }
+            }
+            
+            // 检查网址变化
+            if (!hasChanges) {
+              const currentUrlsMap = new Map(state.urls.map(u => [u.id, u]));
+              for (const [id, url] of currentUrlsMap) {
+                const oldUrl = snapshot.urls.get(id);
+                if (!oldUrl || oldUrl.updatedAt !== url.updatedAt || oldUrl.isDeleted !== url.isDeleted) {
+                  hasChanges = true;
+                  break;
+                }
+              }
+              if (!hasChanges && currentUrlsMap.size !== snapshot.urls.size) {
+                hasChanges = true;
+              }
+            }
+            
+            // 检查首页内容变化
+            if (!hasChanges) {
+              const { useHomeContentStore } = await import('./homeContentStore');
+              const currentHomeContent = useHomeContentStore.getState().content;
+              if (currentHomeContent !== snapshot.homeContent) {
+                hasChanges = true;
+              }
+            }
+            
+            // 如果没有变化且不是删除操作，跳过同步
+            if (!hasChanges && !isDeleteOperation) {
+              logger.log('[dataStore] 数据无变化，跳过同步');
+              return;
+            }
+            
+            logger.log('[dataStore] 检测到数据变化，开始同步');
+          }
           // 如果正在上传，检查是否卡住（超过30秒）
           // 重要：删除操作必须立即同步，即使正在上传也要等待或强制同步
           if (get().isUploading && !isDeleteOperation) {
@@ -1674,7 +2165,7 @@ export const useDataStore = create<DataState>()(
             
             const state = get();
             
-            // 确保 permanentlyDeletedFolderIds 是 Set 类型
+            // 确保永久删除的文件夹、笔记、网址ID列表是 Set 类型
             let permanentlyDeletedIds: Set<string>;
             if (state.permanentlyDeletedFolderIds instanceof Set) {
               permanentlyDeletedIds = state.permanentlyDeletedFolderIds;
@@ -1682,6 +2173,24 @@ export const useDataStore = create<DataState>()(
               permanentlyDeletedIds = new Set(state.permanentlyDeletedFolderIds);
             } else {
               permanentlyDeletedIds = new Set<string>();
+            }
+            
+            let permanentlyDeletedNoteIds: Set<string>;
+            if (state.permanentlyDeletedNoteIds instanceof Set) {
+              permanentlyDeletedNoteIds = state.permanentlyDeletedNoteIds;
+            } else if (Array.isArray(state.permanentlyDeletedNoteIds)) {
+              permanentlyDeletedNoteIds = new Set(state.permanentlyDeletedNoteIds);
+            } else {
+              permanentlyDeletedNoteIds = new Set<string>();
+            }
+            
+            let permanentlyDeletedUrlIds: Set<string>;
+            if (state.permanentlyDeletedUrlIds instanceof Set) {
+              permanentlyDeletedUrlIds = state.permanentlyDeletedUrlIds;
+            } else if (Array.isArray(state.permanentlyDeletedUrlIds)) {
+              permanentlyDeletedUrlIds = new Set(state.permanentlyDeletedUrlIds);
+            } else {
+              permanentlyDeletedUrlIds = new Set<string>();
             }
             
             // 对于删除操作，需要同步已删除的文件夹（isDeleted = true），以便服务器能正确保存删除状态
@@ -1701,8 +2210,12 @@ export const useDataStore = create<DataState>()(
               }
             );
             
-            // 对于删除操作，也需要同步已删除的笔记和网址
+            // 对于删除操作，也需要同步已删除的笔记和网址，但排除永久删除的项
             const notesToSync = (state.notes || []).filter((note: Note) => {
+              // 排除永久删除的笔记
+              if (permanentlyDeletedNoteIds.has(note.id)) {
+                return false;
+              }
               if (isDeleteOperation) {
                 return true; // 删除操作时，包含所有笔记（包括已删除的）
               }
@@ -1710,6 +2223,10 @@ export const useDataStore = create<DataState>()(
             });
             
             const urlsToSync = (state.urls || []).filter((url: Url) => {
+              // 排除永久删除的网址
+              if (permanentlyDeletedUrlIds.has(url.id)) {
+                return false;
+              }
               if (isDeleteOperation) {
                 return true; // 删除操作时，包含所有网址（包括已删除的）
               }
@@ -1728,12 +2245,19 @@ export const useDataStore = create<DataState>()(
               });
             }
             
+            // 获取首页内容
+            const { useHomeContentStore } = await import('./homeContentStore');
+            const homeContent = useHomeContentStore.getState().content;
+            
             const dataToSync = {
               folders: foldersToSync,
               notes: notesToSync,
               urls: urlsToSync,
               trash: [], // 保留 trash 数组（向后兼容），但不再使用
+              homeContent: homeContent, // 同步首页内容
               permanentlyDeletedFolderIds: Array.from(permanentlyDeletedIds), // 同步永久删除列表
+              permanentlyDeletedNoteIds: Array.from(permanentlyDeletedNoteIds), // 同步永久删除的笔记列表
+              permanentlyDeletedUrlIds: Array.from(permanentlyDeletedUrlIds), // 同步永久删除的网址列表
             };
             
             // 检查删除操作是否包含已删除的项
@@ -1800,10 +2324,10 @@ export const useDataStore = create<DataState>()(
                 urls: urlsToSync.length,
                 deletedNotes: deletedNotesInSync.length,
                 isDeleteOperation,
-                url: `${API_BASE_URL}/data/sync`,
+                url: `${API_BASE_URL}/v1/data/sync`,
               });
               
-              const res = await fetch(`${API_BASE_URL}/data/sync`, {
+              const res = await fetch(`${API_BASE_URL}/v1/data/sync`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${token}`,
@@ -1850,7 +2374,33 @@ export const useDataStore = create<DataState>()(
                 if (result && result.success) {
                   clearTimeout(timeoutProtection);
                   const syncDuration = Date.now() - syncStartTime;
+                  
+                  // 更新同步快照（用于增量同步检测）
+                  const currentState = get();
+                  const newSnapshot = {
+                    folders: new Map<string, Folder>(currentState.folders.map(f => [f.id, f])),
+                    notes: new Map<string, Note>(currentState.notes.map(n => [n.id, n])),
+                    urls: new Map<string, Url>(currentState.urls.map(u => [u.id, u])),
+                    homeContent: homeContent,
+                  };
+                  
+                  // 更新版本信息：同步成功后，标记为已同步
+                  const updatedNotes = currentState.notes.map((note) => {
+                    if (note.isDirty) {
+                      // 使用服务器返回的版本号（如果有），否则使用本地版本号
+                      const serverVersion = result.data?.versions?.notes?.find((v: any) => v.id === note.id)?.serverVersion;
+                      if (serverVersion !== undefined) {
+                        return markAsSynced(note, serverVersion);
+                      } else if (note.localVersion) {
+                        // 如果没有服务器版本，使用本地版本作为服务器版本
+                        return markAsSynced(note, note.localVersion);
+                      }
+                    }
+                    return note;
+                  });
+                  
                   set({
+                    notes: updatedNotes,
                     lastSyncTime: result.data?.lastSyncAt || Date.now(),
                     isUploading: false,
                     pendingChanges: false,
@@ -1858,6 +2408,7 @@ export const useDataStore = create<DataState>()(
                     syncSuccess: true,
                     syncRetryCount: 0, // 重置重试计数
                     lastRetryTime: null,
+                    lastSyncedSnapshot: newSnapshot, // 更新同步快照
                   });
                   logger.log('[dataStore] 数据已同步到服务器', {
                     duration: `${syncDuration}ms`,
@@ -1873,20 +2424,32 @@ export const useDataStore = create<DataState>()(
                   
                   // 优化：上传成功后，立即从服务器拉取最新数据并强制应用服务器数据
                   // 这确保数据一致性，服务器数据始终是权威来源
-                  logger.log('[dataStore] 上传成功，立即从服务器拉取最新数据并强制应用服务器数据');
+                  // 强制要求：所有设备必须以服务器为准，上传后立即从服务器同步
+                  logger.log('[dataStore] 上传成功，立即从服务器拉取最新数据并强制应用服务器数据（确保所有设备一致性）');
                   // 使用 Promise 包装，确保异步错误被正确处理
-                  new Promise<void>((resolve) => {
-                    setTimeout(() => {
-                      get().syncDataFromServer(0, true) // 强制优先使用服务器数据
-                        .then(() => {
-                          logger.log('[dataStore] 服务器数据比对和应用完成');
-                          resolve();
-                        })
-                        .catch((error) => {
-                          logger.error('[dataStore] 从服务器拉取数据失败:', error);
-                          resolve(); // 即使失败也 resolve，避免未处理的 Promise
-                        });
-                    }, 1000); // 延迟1秒，确保服务器已处理完上传的数据
+                  // 增加重试机制，确保能获取到服务器最新数据
+                  const fetchServerData = async (retryCount = 0): Promise<void> => {
+                    const MAX_RETRIES = 3;
+                    const DELAY = 500; // 初始延迟500ms
+                    
+                    try {
+                      await new Promise(resolve => setTimeout(resolve, DELAY * (retryCount + 1)));
+                      await get().syncDataFromServer(0, true); // 强制优先使用服务器数据
+                      logger.log('[dataStore] 服务器数据比对和应用完成（确保以服务器为准）');
+                    } catch (error) {
+                      logger.error('[dataStore] 从服务器拉取数据失败:', error);
+                      if (retryCount < MAX_RETRIES) {
+                        logger.log(`[dataStore] 重试拉取服务器数据 (${retryCount + 1}/${MAX_RETRIES})`);
+                        return fetchServerData(retryCount + 1);
+                      } else {
+                        logger.warn('[dataStore] 达到最大重试次数，停止拉取服务器数据');
+                      }
+                    }
+                  };
+                  
+                  // 异步执行，不阻塞主流程
+                  fetchServerData().catch(() => {
+                    // 忽略错误，避免未处理的 Promise
                   });
                 } else {
                   clearTimeout(timeoutProtection);
@@ -1926,21 +2489,77 @@ export const useDataStore = create<DataState>()(
                   ? String(errorData.message) 
                   : '同步失败，请稍后重试');
                 logger.error('[dataStore] 同步失败:', errorMessage);
-                // 同步失败，触发自动重试
-                await get().handleSyncRetry('upload', errorMessage);
+                
+                // 使用重试队列进行自动重试（退避策略）
+                const syncId = `sync-${Date.now()}`;
+                retryQueue.add(
+                  syncId,
+                  async () => {
+                    await get().syncDataToServer(isDeleteOperation);
+                  },
+                  {
+                    maxRetries: 3,
+                    onSuccess: () => {
+                      logger.log('[dataStore] 重试同步成功');
+                      set({ syncError: null, syncSuccess: true });
+                    },
+                    onFailure: (error) => {
+                      logger.error('[dataStore] 重试同步失败，已达最大重试次数:', error);
+                      set({ 
+                        syncError: '同步失败，将自动重试',
+                        syncSuccess: false,
+                      });
+                    },
+                  }
+                );
+                
+                set({ 
+                  isUploading: false,
+                  syncError: '同步失败，将自动重试',
+                  syncSuccess: false,
+                });
               }
             } catch (fetchError: unknown) {
               clearTimeout(timeoutId);
               clearTimeout(timeoutProtection);
-              let errorMessage = '网络错误，请检查网络连接';
+              const errorMessage = fetchError instanceof Error && fetchError.name === 'AbortError'
+                ? '请求超时，请检查网络连接'
+                : '网络错误，请检查网络连接';
+              
               if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-                errorMessage = '请求超时，请检查网络连接';
                 logger.error('[dataStore] 请求超时');
               } else {
                 logger.error('[dataStore] 同步数据到服务器失败:', fetchError);
               }
-              // 同步失败，触发自动重试
-              await get().handleSyncRetry('upload', errorMessage);
+              
+              // 使用重试队列进行自动重试（退避策略）
+              const syncId = `sync-${Date.now()}`;
+              retryQueue.add(
+                syncId,
+                async () => {
+                  await get().syncDataToServer(isDeleteOperation);
+                },
+                {
+                  maxRetries: 3,
+                  onSuccess: () => {
+                    logger.log('[dataStore] 重试同步成功');
+                    set({ syncError: null, syncSuccess: true });
+                  },
+                  onFailure: (error) => {
+                    logger.error('[dataStore] 重试同步失败，已达最大重试次数:', error);
+                    set({ 
+                      syncError: errorMessage, // 使用错误信息
+                      syncSuccess: false,
+                    });
+                  },
+                }
+              );
+              
+              set({ 
+                isUploading: false,
+                syncError: errorMessage, // 使用错误信息
+                syncSuccess: false,
+              });
             }
           } catch (e) {
             clearTimeout(timeoutProtection);
@@ -2037,6 +2656,8 @@ export const useDataStore = create<DataState>()(
         const serialized = {
           ...state,
           permanentlyDeletedFolderIds: Array.from(state?.permanentlyDeletedFolderIds || []),
+          permanentlyDeletedNoteIds: Array.from(state?.permanentlyDeletedNoteIds || []),
+          permanentlyDeletedUrlIds: Array.from(state?.permanentlyDeletedUrlIds || []),
         };
         return JSON.stringify(serialized);
       },
@@ -2046,6 +2667,8 @@ export const useDataStore = create<DataState>()(
         return {
           ...parsed,
           permanentlyDeletedFolderIds: new Set(parsed.permanentlyDeletedFolderIds || []),
+          permanentlyDeletedNoteIds: new Set(parsed.permanentlyDeletedNoteIds || []),
+          permanentlyDeletedUrlIds: new Set(parsed.permanentlyDeletedUrlIds || []),
         };
       },
       onRehydrateStorage: () => (state) => {

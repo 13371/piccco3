@@ -1,5 +1,5 @@
 .user-management-page {
-  padding: 20px;
+  padding: 20px 20px 12px 20px; /* 减少底部 padding */
 }
 
 .user-management-header {
@@ -46,7 +46,7 @@
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .user-list {
@@ -68,8 +68,9 @@
 }
 
 .user-item.banned {
-  background-color: #fff5f5;
-  border-color: #ffcccc;
+  background-color: var(--hover-bg);
+  border-color: var(--color-red);
+  opacity: 0.3;
 }
 
 .user-info {
@@ -117,7 +118,7 @@
 
 .active-badge {
   padding: 2px 8px;
-  background-color: #4caf50;
+  background-color: var(--color-green);
   color: white;
   border-radius: 12px;
   font-size: 12px;
@@ -126,13 +127,13 @@
 
 .user-email {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .user-meta {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .user-actions {
@@ -151,17 +152,17 @@
 }
 
 .view-btn {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--button-bg);
+  color: var(--button-text);
 }
 
 .ban-btn {
-  background-color: #ff9800;
+  background-color: var(--color-orange);
   color: white;
 }
 
 .unban-btn {
-  background-color: #4caf50;
+  background-color: var(--color-green);
   color: white;
 }
 
@@ -200,9 +201,9 @@
 }
 
 .page-btn:hover:not(:disabled) {
-  background-color: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border-color: var(--button-bg);
 }
 
 .page-btn:disabled {
@@ -212,7 +213,7 @@
 
 .page-info {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* 弹窗 */
@@ -257,7 +258,7 @@
   background: none;
   border: none;
   font-size: 28px;
-  color: #999;
+  color: var(--text-tertiary);
   cursor: pointer;
   line-height: 1;
   padding: 0;
@@ -284,7 +285,7 @@
 
 .detail-label {
   font-weight: 600;
-  color: #666;
+  color: var(--text-secondary);
   min-width: 100px;
   margin-right: 12px;
 }
@@ -308,7 +309,7 @@
 
 .ban-reason-input label {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -351,6 +352,34 @@
 
 .modal-btn:hover {
   opacity: 0.9;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .user-management-page {
+    padding: 12px 12px 8px 12px;
+  }
+  
+  .user-management-header {
+    margin-bottom: 16px;
+  }
+  
+  .user-list {
+    gap: 8px;
+  }
+  
+  .user-item {
+    padding: 12px;
+  }
+  
+  .user-actions {
+    gap: 6px;
+  }
+  
+  .action-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
 }
 
 

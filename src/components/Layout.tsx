@@ -1,15 +1,19 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useUserStore } from '../stores/userStore';
 import { useMessageStore } from '../stores/messageStore';
 import { useDataStore } from '../stores/dataStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useHomeContentStore } from '../stores/homeContentStore';
+import { API_BASE_URL } from '../config/api';
+import { USE_NEW_UI } from '../config/ui';
 import TopBar from './TopBar';
 import TopNav from './TopNav';
 import './Layout.css';
 
 const Layout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useUserStore((state) => state.isAuthenticated());
   const isBanned = useUserStore((state) => state.isBanned());
   const logout = useUserStore((state) => state.logout);
@@ -17,6 +21,9 @@ const Layout = () => {
   const nightMode = useSettingsStore((state) => state.nightMode);
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
   const [banMessage, setBanMessage] = useState<string | null>(null);
+  
+  // 检查是否在新建记事页面
+  const isNewNotePage = location.pathname === '/new-note';
 
   // 检查封禁状态（更频繁检查，确保解封后立即恢复）
   useEffect(() => {
@@ -79,14 +86,122 @@ const Layout = () => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
+    const syncHomeContent = useHomeContentStore.getState().syncFromServer;
     
     // 延迟同步，避免与登录时的同步冲突（一切以服务器为准）
     const initialSyncTimer = setTimeout(() => {
       syncDataFromServer(0, true); // 强制优先使用服务器数据
+      // 同步首页内容
+      syncHomeContent();
     }, 1000);
     
     return () => {
       clearTimeout(initialSyncTimer);
+    };
+  }, [isAuthenticated, isBanned]);
+
+  // 页面可见性变化时自动同步（刷新网页、切换标签页等）
+  // 确保B设备刷新网页后能从服务器获取最新数据
+  useEffect(() => {
+    if (!isAuthenticated || isBanned) return;
+    
+    const syncDataFromServer = useDataStore.getState().syncDataFromServer;
+    const syncHomeContent = useHomeContentStore.getState().syncFromServer;
+    const syncTimers: ReturnType<typeof setTimeout>[] = [];
+    
+    // 页面可见性变化处理
+    const handleVisibilityChangeWrapper = () => {
+      if (document.visibilityState === 'visible') {
+        // 页面变为可见时，从服务器同步数据（确保B设备刷新后能获取最新数据）
+        const syncTimer = setTimeout(() => {
+          console.log('[Layout] 页面可见，强制从服务器同步数据');
+          syncDataFromServer(0, true); // 强制优先使用服务器数据
+          syncHomeContent(); // 同步首页内容
+        }, 300);
+        syncTimers.push(syncTimer);
+      } else if (document.visibilityState === 'hidden') {
+        // 页面隐藏时，立即同步本地变更到服务器
+        console.log('[Layout] 页面隐藏，立即同步数据');
+        const { currentUser } = useUserStore.getState();
+        if (currentUser) {
+          // 使用 syncDataToServer 同步（会检查是否有变化）
+          useDataStore.getState().syncDataToServer();
+          // 同步首页内容
+          useHomeContentStore.getState().syncToServer();
+        }
+      }
+    };
+    
+    // 页面加载时立即同步一次（刷新网页时）
+    const handleLoad = () => {
+      // 延迟1秒同步，确保登录同步已完成
+      const syncTimer = setTimeout(() => {
+        console.log('[Layout] 页面加载完成，强制从服务器同步数据');
+        syncDataFromServer(0, true); // 强制优先使用服务器数据
+        syncHomeContent(); // 同步首页内容
+      }, 1000);
+      syncTimers.push(syncTimer);
+    };
+    
+    // 页面获得焦点时同步（切换回标签页时）
+    const handleFocus = () => {
+      const syncTimer = setTimeout(() => {
+        console.log('[Layout] 页面获得焦点，强制从服务器同步数据');
+        syncDataFromServer(0, true); // 强制优先使用服务器数据
+        syncHomeContent(); // 同步首页内容
+      }, 300);
+      syncTimers.push(syncTimer);
+    };
+    
+    // 兜底同步（每3分钟同步一次，确保数据一致性）
+    const fallbackSyncInterval = setInterval(() => {
+      console.log('[Layout] 兜底同步（3分钟）');
+      // 只从服务器拉取，不上传（避免无变化时也上传）
+      syncDataFromServer(0, true); // 强制优先使用服务器数据
+      syncHomeContent(); // 同步首页内容
+    }, 3 * 60 * 1000); // 3分钟
+    
+    // 监听网络状态，恢复网络后自动同步
+    const handleOnline = () => {
+      console.log('[Layout] 网络恢复，自动同步');
+      setTimeout(() => {
+        // 延迟1秒，确保网络稳定
+        syncDataFromServer(0, true);
+        syncHomeContent();
+        // 如果有未同步的变更，触发上传
+        const { pendingChanges } = useDataStore.getState();
+        if (pendingChanges) {
+          useDataStore.getState().syncDataToServer();
+        }
+      }, 1000);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    
+    // 页面加载时立即同步一次（刷新网页时）
+    // 注意：load 事件可能在组件挂载后已经触发，所以需要检查
+    if (document.readyState === 'complete') {
+      // 页面已经加载完成，立即同步
+      handleLoad();
+    } else {
+      // 页面还在加载，等待 load 事件
+      window.addEventListener('load', handleLoad);
+    }
+    
+    // 添加事件监听器
+    document.addEventListener('visibilitychange', handleVisibilityChangeWrapper);
+    window.addEventListener('focus', handleFocus);
+    
+    // 清理函数
+    return () => {
+      // 清除所有定时器
+      syncTimers.forEach(timer => clearTimeout(timer));
+      clearInterval(fallbackSyncInterval);
+      // 移除事件监听器
+      document.removeEventListener('visibilitychange', handleVisibilityChangeWrapper);
+      window.removeEventListener('load', handleLoad);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
     };
   }, [isAuthenticated, isBanned]);
 
@@ -149,7 +264,7 @@ const Layout = () => {
   }
 
   return (
-    <div className="layout">
+    <div className={`layout ${USE_NEW_UI ? 'layout-new' : ''}`}>
       {banMessage && (
         <div style={{
           position: 'fixed',
@@ -166,9 +281,10 @@ const Layout = () => {
           {banMessage}
         </div>
       )}
-      <TopBar />
-      <TopNav />
-      <main className="main-content">
+      {/* 在新建记事页面时隐藏 TopBar 和 TopNav */}
+      {!isNewNotePage && <TopBar />}
+      {!isNewNotePage && <TopNav />}
+      <main className={`main-content ${USE_NEW_UI ? 'main-content-new' : ''}`}>
         <Outlet />
       </main>
     </div>

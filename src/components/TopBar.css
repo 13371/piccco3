@@ -1,11 +1,31 @@
 .top-bar {
-  background-color: var(--bg-color);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
   padding: 8px 16px;
-  padding-top: calc(8px + env(safe-area-inset-top)); /* iOS安全区域适配 */
+  padding-top: calc(8px + env(safe-area-inset-top));
   position: sticky;
   top: 0;
   z-index: 101;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 新UI样式 - 简洁的搜索栏样式 */
+.top-bar-new {
+  background: var(--bg-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--border-light);
+  padding: 12px 20px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  box-shadow: none;
+  border-radius: 0;
+}
+
+[data-theme="dark"] .top-bar-new {
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .top-bar-row {
@@ -17,6 +37,11 @@
 
 .top-bar-row.single-row {
   padding: 8px 0;
+}
+
+.top-bar-new .top-bar-row.single-row {
+  padding: 0;
+  max-width: 100%;
 }
 
 .top-bar-left {
@@ -41,18 +66,29 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  padding: 8px; /* 增加内边距，便于移动端触摸 */
+  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s;
-  min-width: 44px; /* 确保足够的触摸目标大小 */
+  transition: transform var(--transition-fast) ease;
+  min-width: 44px;
   min-height: 44px;
   -webkit-tap-highlight-color: transparent;
+  border-radius: var(--radius-md);
 }
 
 .add-btn {
   color: var(--color-purple);
+}
+
+.top-bar-new .add-btn {
+  color: var(--primary-color);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.top-bar-new .add-btn:hover {
+  background: var(--hover-bg);
 }
 
 .add-btn svg {
@@ -61,11 +97,26 @@
 }
 
 .add-btn:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
+  background: var(--hover-bg);
+}
+
+.add-btn:active {
+  transform: scale(0.95);
 }
 
 .search-btn {
-  color: var(--primary-color); /* 蓝色 */
+  color: var(--primary-color);
+}
+
+.top-bar-new .search-btn {
+  color: var(--primary-color);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.top-bar-new .search-btn:hover {
+  background: var(--hover-bg);
 }
 
 .search-btn svg {
@@ -74,15 +125,27 @@
 }
 
 .search-btn:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
+  background: var(--hover-bg);
+}
+
+.search-btn:active {
+  transform: scale(0.95);
 }
 
 .app-title {
   font-size: 24px;
-  font-weight: bold;
+  font-weight: 600;
   color: var(--text-color);
   margin: 0;
   text-transform: lowercase;
+  letter-spacing: -0.5px;
+}
+
+.top-bar-new .app-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
 }
 
 .top-bar-right {
@@ -96,10 +159,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -108,7 +171,7 @@
 }
 
 .sync-status.syncing {
-  background-color: rgba(0, 122, 255, 0.1);
+  background-color: var(--primary-light);
   color: var(--primary-color);
 }
 
@@ -128,7 +191,7 @@
 }
 
 .sync-status.idle {
-  background-color: rgba(142, 142, 147, 0.1);
+  background-color: var(--hover-bg);
   color: var(--text-secondary);
 }
 
@@ -145,7 +208,7 @@
 }
 
 [data-theme="dark"] .sync-status.syncing {
-  background-color: rgba(10, 132, 255, 0.2);
+  background-color: var(--primary-light);
 }
 
 [data-theme="dark"] .sync-status.success {
@@ -161,7 +224,7 @@
 }
 
 [data-theme="dark"] .sync-status.idle {
-  background-color: rgba(142, 142, 147, 0.2);
+  background-color: var(--hover-bg);
 }
 
 /* 移动端优化 */
@@ -171,14 +234,30 @@
     padding-top: calc(12px + env(safe-area-inset-top));
   }
   
+  .top-bar-new {
+    padding: 10px 12px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+  
   .app-title {
     font-size: 20px;
   }
   
   .sync-status {
-    min-height: 36px; /* 确保足够的触摸目标大小 */
+    min-height: 36px;
     padding: 6px 10px;
   }
+  
+  .add-btn,
+  .search-btn {
+    padding: 8px;
+    min-width: 36px;
+    height: 36px;
+  }
+  
+  .add-btn svg,
+  .search-btn svg {
+    width: 18px;
+    height: 18px;
+  }
 }
-
-

@@ -20,6 +20,8 @@ export interface Folder {
   // 软删除字段
   isDeleted: boolean;
   deletedAt: number | null;
+  // 版本控制字段（用于并发冲突检测）
+  version?: number; // 版本号，每次更新时递增
 }
 
 // 记事项
@@ -33,6 +35,8 @@ export interface Note {
   // 软删除字段
   isDeleted: boolean;
   deletedAt: number | null;
+  // 版本控制字段（用于并发冲突检测）
+  version?: number; // 版本号，每次更新时递增
 }
 
 // 网址项
@@ -47,6 +51,8 @@ export interface Url {
   // 软删除字段
   isDeleted: boolean;
   deletedAt: number | null;
+  // 版本控制字段（用于并发冲突检测）
+  version?: number; // 版本号，每次更新时递增
 }
 
 // 回收站项

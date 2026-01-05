@@ -1,15 +1,53 @@
 :root {
+  /* 主色调 - 白色为主，浅蓝色辅助（偏冷色系） */
   --primary-color: #007AFF;
+  --primary-light: #BBDEFB;
+  --primary-light-deep: #90CAF9;
+  --primary-gradient: linear-gradient(135deg, #BBDEFB 0%, #90CAF9 100%);
+  
+  /* 按钮颜色 - 与导航键一致 */
+  --button-bg: #90CAF9;
+  --button-text: #007AFF;
   --bg-color: #FFFFFF;
-  --text-color: #000000;
-  --border-color: #E5E5E5;
-  --hover-bg: #F5F5F5;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --bg-glass: rgba(255, 255, 255, 0.8);
+  --bg-glass-strong: rgba(255, 255, 255, 0.95);
+  --text-color: #1A1A1A;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --border-color: #E5E7EB;
+  --border-light: #F3F4F6;
+  --hover-bg: #F9FAFB;
+  
+  /* 阴影系统 - 柔和扩散阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.06);
+  
+  /* 圆角系统 - 14-20px */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  --radius-card: 16px;
+  
+  /* 过渡时间 */
+  --transition-fast: 150ms;
+  --transition-normal: 200ms;
+  --transition-slow: 250ms;
+  
+  /* 毛玻璃效果 */
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-blur: blur(20px);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  
+  /* 字体缩放 */
   --font-scale: 1;
-  --text-secondary: #666666;
-  --text-tertiary: #999999;
-  --overlay-bg: rgba(0, 0, 0, 0.5);
-  --shadow-light: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  
+  /* 覆盖层 */
+  --overlay-bg: rgba(0, 0, 0, 0.4);
   
   /* 文件夹颜色 */
   --color-red: #FF3B30;
@@ -19,20 +57,48 @@
   --color-cyan: #5AC8FA;
   --color-blue: #007AFF;
   --color-purple: #AF52DE;
+  
+  /* 页面背景 - 浅灰色渐变 */
+  --page-bg: linear-gradient(180deg, #f5f5f7 0%, #e8e8ed 100%);
 }
 
 /* 深色主题 */
 [data-theme="dark"] {
   --primary-color: #0A84FF;
+  --primary-light: #1E3A5F;
+  --primary-light-deep: #2D4A6F;
+  --primary-gradient: linear-gradient(135deg, #1E3A5F 0%, #2D4A6F 100%);
+  
+  /* 按钮颜色 - 夜间模式（深蓝色背景 + 浅蓝色文字） */
+  --button-bg: #2D4A6F;
+  --button-text: #64D2FF;
+  
   --bg-color: #1C1C1E;
+  --bg-glass: rgba(28, 28, 30, 0.8);
+  --bg-glass-strong: rgba(28, 28, 30, 0.95);
   --text-color: #E5E5EA;
-  --border-color: #48484A;
-  --hover-bg: #2C2C2E;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   --text-secondary: #98989D;
   --text-tertiary: #636366;
+  --border-color: #3A3A3C;
+  --border-light: #2C2C2E;
+  --hover-bg: #2C2C2E;
+  
+  /* 深色模式阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.3);
+  
+  /* 深色模式毛玻璃 */
+  --glass-bg: rgba(28, 28, 30, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* 覆盖层 */
   --overlay-bg: rgba(0, 0, 0, 0.7);
-  --shadow-light: 0 -2px 8px rgba(0, 0, 0, 0.3);
+  
+  /* 页面背景 - 深色渐变 */
+  --page-bg: linear-gradient(180deg, #1C1C1E 0%, #121214 100%);
   
   /* 深色模式下的文件夹颜色 */
   --color-red: #FF453A;
@@ -52,28 +118,35 @@
 
 body {
   font-size: calc(16px * var(--font-scale));
-  background-color: var(--bg-color);
+  background: var(--page-bg);
   color: var(--text-color);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
 /* 统一的返回按钮样式 */
 .page-back-button {
   padding: 6px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: none;
-  background-color: var(--primary-color);
-  color: #fff;
+  background-color: var(--button-bg);
+  color: var(--button-text);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: all var(--transition-fast) ease;
+  box-shadow: var(--shadow-sm);
 }
 
 .page-back-button:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.page-back-button:active {
+  transform: translateY(0) scale(0.98);
 }
 
 /* 统一的页面头部样式 */
@@ -133,11 +206,43 @@ button {
   cursor: pointer;
   border: none;
   background: none;
+  transition: transform var(--transition-fast) ease, box-shadow var(--transition-fast) ease;
 }
 
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* 按钮动效 - hover轻微缩放，active轻微按压 */
+button:not(:disabled):hover {
+  transform: scale(1.02);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* 卡片基础样式 - 统一圆角、阴影、边框 */
+.card {
+  background: var(--bg-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: transform var(--transition-normal) ease, box-shadow var(--transition-normal) ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+/* 毛玻璃效果类 */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
 }
 
 /* 滚动条样式 */

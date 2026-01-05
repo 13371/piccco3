@@ -80,6 +80,62 @@ function sanitizeString(input, maxLength = 1000) {
   return trimmed;
 }
 
+/**
+ * 验证URL格式
+ * @param {string} url - URL地址
+ * @returns {boolean} 是否有效
+ */
+function validateUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  if (url.length > 2048) return false; // URL最大长度限制
+  try {
+    const urlObj = new URL(url);
+    // 只允许 http 和 https 协议
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 验证笔记内容
+ * @param {string} content - 笔记内容
+ * @param {number} maxLength - 最大长度（默认100000字符）
+ * @returns {boolean} 是否有效
+ */
+function validateNoteContent(content, maxLength = 100000) {
+  if (content === null || content === undefined) return true; // 允许空内容
+  if (typeof content !== 'string') return false;
+  if (content.length > maxLength) return false;
+  return true;
+}
+
+/**
+ * 验证文件夹名称
+ * @param {string} name - 文件夹名称
+ * @returns {boolean} 是否有效
+ */
+function validateFolderName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length === 0 || trimmed.length > 50) return false;
+  // 禁止特殊字符，防止路径遍历
+  if (/[<>:"/\\|?*]/.test(trimmed)) return false;
+  return true;
+}
+
+/**
+ * 验证版本号
+ * @param {number} version - 版本号
+ * @returns {boolean} 是否有效
+ */
+function validateVersion(version) {
+  if (version === null || version === undefined) return true; // 允许未设置版本号（向后兼容）
+  if (typeof version !== 'number') return false;
+  if (version < 0 || version > Number.MAX_SAFE_INTEGER) return false;
+  return true;
+}
+
 module.exports = {
   validateEmail,
   validateUsername,
@@ -88,6 +144,10 @@ module.exports = {
   validateUserId,
   validateMessageId,
   sanitizeString,
+  validateUrl,
+  validateNoteContent,
+  validateFolderName,
+  validateVersion,
 };
 
 

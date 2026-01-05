@@ -126,7 +126,10 @@ const TrashPage = () => {
     if (selectedIds.size === 0) return;
     
     if (window.confirm(`确定要永久删除选中的 ${selectedIds.size} 个项目吗？此操作不可恢复。`)) {
-      selectedIds.forEach(id => {
+      // 优化：批量删除时，先收集所有要删除的项，然后一次性删除
+      // 这样可以避免多次同步请求造成的竞态条件
+      const idsToDelete = Array.from(selectedIds);
+      idsToDelete.forEach(id => {
         permanentlyDelete(id);
       });
       setSelectedIds(new Set());

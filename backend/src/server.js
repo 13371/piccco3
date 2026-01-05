@@ -222,6 +222,15 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/message', messageRoutes);
 app.use('/api/v1/data', dataRoutes);
 
+// 调试：打印所有注册的路由
+if (process.env.NODE_ENV === 'development') {
+  logger.debug('server', '已注册的路由:');
+  logger.debug('server', '  /api/v1/auth/*');
+  logger.debug('server', '  /api/v1/admin/*');
+  logger.debug('server', '  /api/v1/message/*');
+  logger.debug('server', '  /api/v1/data/*');
+}
+
 // 向后兼容 - 保留旧版本路由
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
@@ -252,6 +261,10 @@ app.listen(PORT, HOST, () => {
   logger.info('server', `日志级别: ${process.env.LOG_LEVEL || (CONFIG.NODE_ENV === 'production' ? 'INFO' : 'DEBUG')}`);
   if (CONFIG.NODE_ENV === 'development') {
     logger.info('server', `移动设备访问: http://你的IP地址:${PORT}`);
+    // 调试：打印所有注册的路由
+    logger.debug('server', '已注册的API路由:');
+    logger.debug('server', '  GET  /api/v1/auth/devices');
+    logger.debug('server', '  DELETE /api/v1/auth/devices/:deviceId');
   }
 });
 
