@@ -2478,7 +2478,41 @@ export const useDataStore = create<DataState>()(
             }
             
             // 增量同步：只发送变化的数据（与快照对比）
-            const snapshot = state.lastSyncedSnapshot;
+            let snapshot = state.lastSyncedSnapshot;
+            
+            // 再次修复快照（确保 Map 类型正确）
+            if (snapshot) {
+              if (!(snapshot.folders instanceof Map) || !(snapshot.notes instanceof Map) || !(snapshot.urls instanceof Map)) {
+                logger.warn('[dataStore] syncDataToServer: 快照中的 Map 类型不正确，正在修复...');
+                try {
+                  snapshot = {
+                    folders: snapshot.folders instanceof Map 
+                      ? snapshot.folders 
+                      : (Array.isArray(snapshot.folders) 
+                          ? new Map<string, Folder>(snapshot.folders)
+                          : new Map<string, Folder>(Object.entries(snapshot.folders as any))),
+                    notes: snapshot.notes instanceof Map 
+                      ? snapshot.notes 
+                      : (Array.isArray(snapshot.notes) 
+                          ? new Map<string, Note>(snapshot.notes)
+                          : new Map<string, Note>(Object.entries(snapshot.notes as any || {}))),
+                    urls: snapshot.urls instanceof Map 
+                      ? snapshot.urls 
+                      : (Array.isArray(snapshot.urls) 
+                          ? new Map<string, Url>(snapshot.urls)
+                          : new Map<string, Url>(Object.entries(snapshot.urls as any || {}))),
+                    homeContent: snapshot.homeContent || '',
+                  };
+                  // 更新 state 中的快照
+                  set({ lastSyncedSnapshot: snapshot });
+                } catch (e) {
+                  logger.error('[dataStore] syncDataToServer: 修复快照失败，重置为 null:', e);
+                  snapshot = null;
+                  set({ lastSyncedSnapshot: null });
+                }
+              }
+            }
+            
             let foldersToSync: Folder[] = [];
             let notesToSync: Note[] = [];
             let urlsToSync: Url[] = [];
@@ -2791,6 +2825,16 @@ export const useDataStore = create<DataState>()(
                     homeContent: currentHomeContent, // 使用当前首页内容更新快照
                   };
                   
+                  logger.log('[dataStore] 更新同步快照:', {
+                    folders: { before: state.lastSyncedSnapshot?.folders.size || 0, after: newSnapshot.folders.size },
+                    notes: { before: state.lastSyncedSnapshot?.notes.size || 0, after: newSnapshot.notes.size },
+                    urls: { before: state.lastSyncedSnapshot?.urls.size || 0, after: newSnapshot.urls.size },
+                    homeContentLength: currentHomeContent.length,
+                    syncedFolders: foldersToSync.length,
+                    syncedNotes: notesToSync.length,
+                    syncedUrls: urlsToSync.length,
+                  });
+                  
                   // 更新版本信息：同步成功后，标记为已同步
                   // 注意：版本控制使用统一的 version 字段，不再使用 isDirty 和 localVersion
                   const updatedNotes = currentState.notes.map((note) => {
@@ -3073,28 +3117,107 @@ export const useDataStore = create<DataState>()(
     }),
     {
       name: 'piccco-data-storage',
-      // 序列化时，将 Set 转换为数组
+      // 序列化时，将 Set 转换为数组，将 Map 转换为对象
       serialize: (state: any) => {
         const serialized = {
           ...state,
           permanentlyDeletedFolderIds: Array.from(state?.permanentlyDeletedFolderIds || []),
           permanentlyDeletedNoteIds: Array.from(state?.permanentlyDeletedNoteIds || []),
           permanentlyDeletedUrlIds: Array.from(state?.permanentlyDeletedUrlIds || []),
+          // 将快照中的 Map 转换为可序列化的格式
+          lastSyncedSnapshot: state?.lastSyncedSnapshot ? {
+            folders: Array.from(state.lastSyncedSnapshot.folders.entries()),
+            notes: Array.from(state.lastSyncedSnapshot.notes.entries()),
+            urls: Array.from(state.lastSyncedSnapshot.urls.entries()),
+            homeContent: state.lastSyncedSnapshot.homeContent || '',
+          } : null,
         };
         return JSON.stringify(serialized);
       },
-      // 反序列化时，将数组转换回 Set
+      // 反序列化时，将数组转换回 Set，将对象转换回 Map
       deserialize: (str: string) => {
         const parsed = JSON.parse(str);
+        // 修复快照中的 Map（如果存在）
+        let fixedSnapshot = null;
+        if (parsed.lastSyncedSnapshot) {
+          try {
+            // 如果已经是数组格式（新格式）
+            if (Array.isArray(parsed.lastSyncedSnapshot.folders)) {
+              fixedSnapshot = {
+                folders: new Map<string, Folder>(parsed.lastSyncedSnapshot.folders),
+                notes: new Map<string, Note>(parsed.lastSyncedSnapshot.notes),
+                urls: new Map<string, Url>(parsed.lastSyncedSnapshot.urls),
+                homeContent: parsed.lastSyncedSnapshot.homeContent || '',
+              };
+            } else if (parsed.lastSyncedSnapshot.folders && typeof parsed.lastSyncedSnapshot.folders === 'object' && !(parsed.lastSyncedSnapshot.folders instanceof Map)) {
+              // 如果是普通对象（旧格式），转换为 Map
+              fixedSnapshot = {
+                folders: new Map<string, Folder>(Object.entries(parsed.lastSyncedSnapshot.folders)),
+                notes: new Map<string, Note>(Object.entries(parsed.lastSyncedSnapshot.notes || {})),
+                urls: new Map<string, Url>(Object.entries(parsed.lastSyncedSnapshot.urls || {})),
+                homeContent: parsed.lastSyncedSnapshot.homeContent || '',
+              };
+            } else {
+              // 已经是 Map（理论上不应该发生，但为了安全）
+              fixedSnapshot = parsed.lastSyncedSnapshot;
+            }
+          } catch (e) {
+            console.warn('[dataStore] 快照反序列化失败，重置为 null:', e);
+            fixedSnapshot = null;
+          }
+        }
+        
         return {
           ...parsed,
           permanentlyDeletedFolderIds: new Set(parsed.permanentlyDeletedFolderIds || []),
           permanentlyDeletedNoteIds: new Set(parsed.permanentlyDeletedNoteIds || []),
           permanentlyDeletedUrlIds: new Set(parsed.permanentlyDeletedUrlIds || []),
+          lastSyncedSnapshot: fixedSnapshot,
         };
       },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        
+        // 修复快照中的 Map（如果从 localStorage 恢复时还是普通对象）
+        if (state.lastSyncedSnapshot) {
+          try {
+            // 如果 folders 是数组格式（新序列化格式）
+            if (Array.isArray(state.lastSyncedSnapshot.folders)) {
+              state.lastSyncedSnapshot = {
+                folders: new Map<string, Folder>(state.lastSyncedSnapshot.folders),
+                notes: new Map<string, Note>(state.lastSyncedSnapshot.notes || []),
+                urls: new Map<string, Url>(state.lastSyncedSnapshot.urls || []),
+                homeContent: state.lastSyncedSnapshot.homeContent || '',
+              };
+            } 
+            // 如果 folders 是普通对象（旧格式）
+            else if (state.lastSyncedSnapshot.folders && typeof state.lastSyncedSnapshot.folders === 'object' && !(state.lastSyncedSnapshot.folders instanceof Map)) {
+              logger.warn('[dataStore] onRehydrateStorage: 快照中的 Map 被序列化为普通对象，正在修复...');
+              state.lastSyncedSnapshot = {
+                folders: new Map<string, Folder>(Object.entries(state.lastSyncedSnapshot.folders as any)),
+                notes: state.lastSyncedSnapshot.notes instanceof Map 
+                  ? state.lastSyncedSnapshot.notes 
+                  : new Map<string, Note>(Object.entries(state.lastSyncedSnapshot.notes as any || {})),
+                urls: state.lastSyncedSnapshot.urls instanceof Map 
+                  ? state.lastSyncedSnapshot.urls 
+                  : new Map<string, Url>(Object.entries(state.lastSyncedSnapshot.urls as any || {})),
+                homeContent: state.lastSyncedSnapshot.homeContent || '',
+              };
+            }
+            // 如果已经是 Map，但其他字段可能不是
+            else if (state.lastSyncedSnapshot.folders instanceof Map) {
+              if (!(state.lastSyncedSnapshot.notes instanceof Map)) {
+                state.lastSyncedSnapshot.notes = new Map<string, Note>(Object.entries(state.lastSyncedSnapshot.notes as any || {}));
+              }
+              if (!(state.lastSyncedSnapshot.urls instanceof Map)) {
+                state.lastSyncedSnapshot.urls = new Map<string, Url>(Object.entries(state.lastSyncedSnapshot.urls as any || {}));
+              }
+            }
+          } catch (e) {
+            logger.error('[dataStore] onRehydrateStorage: 修复快照失败，重置为 null:', e);
+            state.lastSyncedSnapshot = null;
+          }
+        }
         
         // 检查当前用户，如果是新用户（没有登录记录），清空回收站和重置文件夹
         const currentUser = useUserStore.getState().currentUser;
