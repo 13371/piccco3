@@ -2160,48 +2160,75 @@ export const useDataStore = create<DataState>()(
             // 检查是否有变化
             let hasChanges = false;
             
-            // 检查文件夹变化
+            // 检查文件夹变化（包括新建的文件夹）
             const currentFoldersMap = new Map(state.folders.map(f => [f.id, f]));
             for (const [id, folder] of currentFoldersMap) {
               const oldFolder = snapshot.folders.get(id);
-              if (!oldFolder || oldFolder.updatedAt !== folder.updatedAt || oldFolder.isDeleted !== folder.isDeleted) {
+              // 如果是新建的文件夹（快照中没有），或者有变化，需要同步
+              if (!oldFolder) {
+                logger.log('[dataStore] 检测到新建的文件夹（快照检查）:', { id, name: folder.name });
+                hasChanges = true;
+                break;
+              } else if (oldFolder.updatedAt !== folder.updatedAt || oldFolder.isDeleted !== folder.isDeleted) {
                 hasChanges = true;
                 break;
               }
             }
-            // 检查是否有新增或删除的文件夹
+            // 检查是否有新增或删除的文件夹（数量变化）
             if (!hasChanges) {
               if (currentFoldersMap.size !== snapshot.folders.size) {
+                logger.log('[dataStore] 检测到文件夹数量变化:', { 
+                  current: currentFoldersMap.size, 
+                  snapshot: snapshot.folders.size 
+                });
                 hasChanges = true;
               }
             }
             
-            // 检查笔记变化
+            // 检查笔记变化（包括新建的笔记）
             if (!hasChanges) {
               const currentNotesMap = new Map(state.notes.map(n => [n.id, n]));
               for (const [id, note] of currentNotesMap) {
                 const oldNote = snapshot.notes.get(id);
-                if (!oldNote || oldNote.updatedAt !== note.updatedAt || oldNote.isDeleted !== note.isDeleted) {
+                // 如果是新建的笔记（快照中没有），或者有变化，需要同步
+                if (!oldNote) {
+                  logger.log('[dataStore] 检测到新建的笔记（快照检查）:', { id, content: note.content.substring(0, 50) });
+                  hasChanges = true;
+                  break;
+                } else if (oldNote.updatedAt !== note.updatedAt || oldNote.isDeleted !== note.isDeleted) {
                   hasChanges = true;
                   break;
                 }
               }
               if (!hasChanges && currentNotesMap.size !== snapshot.notes.size) {
+                logger.log('[dataStore] 检测到笔记数量变化:', { 
+                  current: currentNotesMap.size, 
+                  snapshot: snapshot.notes.size 
+                });
                 hasChanges = true;
               }
             }
             
-            // 检查网址变化
+            // 检查网址变化（包括新建的网址）
             if (!hasChanges) {
               const currentUrlsMap = new Map(state.urls.map(u => [u.id, u]));
               for (const [id, url] of currentUrlsMap) {
                 const oldUrl = snapshot.urls.get(id);
-                if (!oldUrl || oldUrl.updatedAt !== url.updatedAt || oldUrl.isDeleted !== url.isDeleted) {
+                // 如果是新建的网址（快照中没有），或者有变化，需要同步
+                if (!oldUrl) {
+                  logger.log('[dataStore] 检测到新建的网址（快照检查）:', { id, title: url.title });
+                  hasChanges = true;
+                  break;
+                } else if (oldUrl.updatedAt !== url.updatedAt || oldUrl.isDeleted !== url.isDeleted) {
                   hasChanges = true;
                   break;
                 }
               }
               if (!hasChanges && currentUrlsMap.size !== snapshot.urls.size) {
+                logger.log('[dataStore] 检测到网址数量变化:', { 
+                  current: currentUrlsMap.size, 
+                  snapshot: snapshot.urls.size 
+                });
                 hasChanges = true;
               }
             }
@@ -2311,19 +2338,65 @@ export const useDataStore = create<DataState>()(
           
           // 优化：删除操作始终同步，其他操作如果有变更也同步
           // 如果没有待同步的变更且不是删除操作，检查是否需要同步
-          // 重要：即使没有 pendingChanges，也要检查 homeContent 是否有变化
+          // 重要：即使没有 pendingChanges，也要检查是否有新建的项或 homeContent 是否有变化
           if (!get().pendingChanges && !isDeleteOperation) {
+            const state = get();
+            const snapshot = state.lastSyncedSnapshot;
+            
+            // 检查是否有新建的项（快照中没有的项）
+            let hasNewItems = false;
+            if (snapshot) {
+              // 检查是否有新建的文件夹
+              const currentFoldersMap = new Map(state.folders.map(f => [f.id, f]));
+              for (const [id] of currentFoldersMap) {
+                if (!snapshot.folders.get(id)) {
+                  logger.log('[dataStore] 检测到新建的文件夹（即使没有 pendingChanges）:', { id });
+                  hasNewItems = true;
+                  break;
+                }
+              }
+              
+              // 检查是否有新建的笔记
+              if (!hasNewItems) {
+                const currentNotesMap = new Map(state.notes.map(n => [n.id, n]));
+                for (const [id] of currentNotesMap) {
+                  if (!snapshot.notes.get(id)) {
+                    logger.log('[dataStore] 检测到新建的笔记（即使没有 pendingChanges）:', { id });
+                    hasNewItems = true;
+                    break;
+                  }
+                }
+              }
+              
+              // 检查是否有新建的网址
+              if (!hasNewItems) {
+                const currentUrlsMap = new Map(state.urls.map(u => [u.id, u]));
+                for (const [id] of currentUrlsMap) {
+                  if (!snapshot.urls.get(id)) {
+                    logger.log('[dataStore] 检测到新建的网址（即使没有 pendingChanges）:', { id });
+                    hasNewItems = true;
+                    break;
+                  }
+                }
+              }
+            }
+            
             // 检查 homeContent 是否有变化（即使其他数据没变化）
             const { useHomeContentStore } = await import('./homeContentStore');
             const currentHomeContent = useHomeContentStore.getState().content || '';
-            const snapshot = get().lastSyncedSnapshot;
             const snapshotHomeContent = snapshot?.homeContent || '';
+            const hasHomeContentChange = currentHomeContent !== snapshotHomeContent;
             
-            if (currentHomeContent !== snapshotHomeContent) {
-              logger.log('[dataStore] 检测到首页内容变化（即使其他数据无变化），需要同步:', {
-                current: currentHomeContent.substring(0, 50),
-                snapshot: snapshotHomeContent.substring(0, 50),
-              });
+            if (hasNewItems || hasHomeContentChange) {
+              if (hasNewItems) {
+                logger.log('[dataStore] 检测到新建的项（即使没有 pendingChanges），需要同步');
+              }
+              if (hasHomeContentChange) {
+                logger.log('[dataStore] 检测到首页内容变化（即使其他数据无变化），需要同步:', {
+                  current: currentHomeContent.substring(0, 50),
+                  snapshot: snapshotHomeContent.substring(0, 50),
+                });
+              }
               // 继续同步
             } else {
               const timeSinceLastSync = Date.now() - (get().lastSyncTime || 0);
@@ -2436,10 +2509,22 @@ export const useDataStore = create<DataState>()(
                 
                 const oldFolder = snapshot.folders.get(id);
                 // 如果是新文件夹，或者有变化（updatedAt 或 isDeleted 不同），需要同步
-                if (!oldFolder || 
-                    oldFolder.updatedAt !== folder.updatedAt || 
+                if (!oldFolder) {
+                  // 新建的文件夹，必须同步
+                  logger.log('[dataStore] 检测到新建的文件夹，需要同步:', { id, name: folder.name });
+                  foldersToSync.push(folder);
+                } else if (oldFolder.updatedAt !== folder.updatedAt || 
                     oldFolder.isDeleted !== folder.isDeleted ||
                     (isDeleteOperation && folder.isDeleted)) {
+                  // 有变化的文件夹，需要同步
+                  logger.log('[dataStore] 检测到文件夹变化，需要同步:', { 
+                    id, 
+                    name: folder.name,
+                    oldUpdatedAt: oldFolder.updatedAt, 
+                    newUpdatedAt: folder.updatedAt,
+                    oldIsDeleted: oldFolder.isDeleted,
+                    newIsDeleted: folder.isDeleted,
+                  });
                   foldersToSync.push(folder);
                 }
               }
@@ -2451,10 +2536,21 @@ export const useDataStore = create<DataState>()(
                 
                 const oldNote = snapshot.notes.get(id);
                 // 如果是新笔记，或者有变化（updatedAt 或 isDeleted 不同），需要同步
-                if (!oldNote || 
-                    oldNote.updatedAt !== note.updatedAt || 
+                if (!oldNote) {
+                  // 新建的笔记，必须同步
+                  logger.log('[dataStore] 检测到新建的笔记，需要同步:', { id, content: note.content.substring(0, 50) });
+                  notesToSync.push(note);
+                } else if (oldNote.updatedAt !== note.updatedAt || 
                     oldNote.isDeleted !== note.isDeleted ||
                     (isDeleteOperation && note.isDeleted)) {
+                  // 有变化的笔记，需要同步
+                  logger.log('[dataStore] 检测到笔记变化，需要同步:', { 
+                    id, 
+                    oldUpdatedAt: oldNote.updatedAt, 
+                    newUpdatedAt: note.updatedAt,
+                    oldIsDeleted: oldNote.isDeleted,
+                    newIsDeleted: note.isDeleted,
+                  });
                   notesToSync.push(note);
                 }
               }
@@ -2466,19 +2562,46 @@ export const useDataStore = create<DataState>()(
                 
                 const oldUrl = snapshot.urls.get(id);
                 // 如果是新网址，或者有变化（updatedAt 或 isDeleted 不同），需要同步
-                if (!oldUrl || 
-                    oldUrl.updatedAt !== url.updatedAt || 
+                if (!oldUrl) {
+                  // 新建的网址，必须同步
+                  logger.log('[dataStore] 检测到新建的网址，需要同步:', { id, title: url.title });
+                  urlsToSync.push(url);
+                } else if (oldUrl.updatedAt !== url.updatedAt || 
                     oldUrl.isDeleted !== url.isDeleted ||
                     (isDeleteOperation && url.isDeleted)) {
+                  // 有变化的网址，需要同步
+                  logger.log('[dataStore] 检测到网址变化，需要同步:', { 
+                    id, 
+                    title: url.title,
+                    oldUpdatedAt: oldUrl.updatedAt, 
+                    newUpdatedAt: url.updatedAt,
+                    oldIsDeleted: oldUrl.isDeleted,
+                    newIsDeleted: url.isDeleted,
+                  });
                   urlsToSync.push(url);
                 }
               }
               
               logger.log('[dataStore] 增量同步数据统计:', {
-                folders: { total: state.folders.length, changed: foldersToSync.length },
-                notes: { total: state.notes.length, changed: notesToSync.length },
-                urls: { total: state.urls.length, changed: urlsToSync.length },
+                folders: { total: state.folders.length, changed: foldersToSync.length, snapshotSize: snapshot.folders.size },
+                notes: { total: state.notes.length, changed: notesToSync.length, snapshotSize: snapshot.notes.size },
+                urls: { total: state.urls.length, changed: urlsToSync.length, snapshotSize: snapshot.urls.size },
+                newFolders: foldersToSync.filter(f => !snapshot.folders.get(f.id)).length,
+                newNotes: notesToSync.filter(n => !snapshot.notes.get(n.id)).length,
+                newUrls: urlsToSync.filter(u => !snapshot.urls.get(u.id)).length,
               });
+              
+              // 如果没有变化的数据，记录警告
+              if (foldersToSync.length === 0 && notesToSync.length === 0 && urlsToSync.length === 0) {
+                logger.warn('[dataStore] 警告：增量同步没有检测到任何变化的数据！', {
+                  totalFolders: state.folders.length,
+                  totalNotes: state.notes.length,
+                  totalUrls: state.urls.length,
+                  snapshotFolders: snapshot.folders.size,
+                  snapshotNotes: snapshot.notes.size,
+                  snapshotUrls: snapshot.urls.size,
+                });
+              }
             }
             
             // 如果过滤掉了数据，记录日志
