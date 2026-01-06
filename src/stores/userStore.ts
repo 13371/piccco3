@@ -127,14 +127,11 @@ export const useUserStore = create<UserState>()(
           const isNewUser = !hasLoginRecord;
           const isSwitchingUser = oldUser && oldUser.id !== data.user.id;
           
-          if (isSwitchingUser || isNewUser) {
-            if (isSwitchingUser) {
-              logger.log('[userStore] 切换用户，清除旧用户数据:', oldUser.id);
-            } else {
-              logger.log('[userStore] 新用户首次登录，清除可能存在的旧数据');
-            }
+          // 只有切换用户时才清除旧用户数据，退出登录再登录（同一用户）不清除数据
+          if (isSwitchingUser) {
+            logger.log('[userStore] 切换用户，清除旧用户数据:', oldUser.id);
             
-            // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧数据
+            // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧用户数据
             localStorage.removeItem('piccco-data-storage');
             localStorage.removeItem('piccco-message-storage');
             
@@ -191,12 +188,16 @@ export const useUserStore = create<UserState>()(
             useMessageStore.setState({
               messages: [],
             });
-            
-            // 先保存登录时间（在设置用户信息之前），确保 onRehydrateStorage 能正确识别新用户
-            if (data.user?.id) {
-              const key = `piccco-login-time-${data.user.id}`;
-              localStorage.setItem(key, String(Date.now()));
-            }
+          } else if (isNewUser) {
+            // 新用户首次登录，但不清除可能存在的旧数据（可能是测试数据）
+            // 只记录登录时间，让 onRehydrateStorage 判断是否是新用户
+            logger.log('[userStore] 新用户首次登录，保留现有数据（如果有）');
+          }
+          
+          // 保存登录时间（无论是否新用户或切换用户）
+          if (data.user?.id) {
+            const key = `piccco-login-time-${data.user.id}`;
+            localStorage.setItem(key, String(Date.now()));
           }
 
           set({
@@ -476,14 +477,10 @@ export const useUserStore = create<UserState>()(
       },
       
       logout: () => {
-        // 清除用户相关的本地存储数据
-        const currentUser = get().currentUser;
-        if (currentUser?.id) {
-          // 清除该用户的数据存储
-          localStorage.removeItem(`piccco-data-storage-${currentUser.id}`);
-          localStorage.removeItem(`piccco-message-storage-${currentUser.id}`);
-          localStorage.removeItem(`piccco-login-time-${currentUser.id}`);
-        }
+        // 退出登录时不清除数据，只清除用户状态
+        // 重要：不清除 piccco-login-time，这样重新登录时能识别是同一用户，不会误判为新用户
+        // 也不清除 piccco-data-storage 和 piccco-message-storage，数据会保留在 localStorage 中
+        // 只有在切换用户时才会清除旧用户的数据（在 login 函数中处理）
         set({
           currentUser: null,
           token: null,
