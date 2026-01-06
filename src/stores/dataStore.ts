@@ -2717,9 +2717,26 @@ export const useDataStore = create<DataState>()(
               permanentlyDeletedUrlIds: Array.from(permanentlyDeletedUrlIds), // 同步永久删除的网址列表
             };
             
-            // 只有首页内容有变化时才包含
+            // 重要：即使其他数据没有变化，如果首页内容有变化，也要同步
+            // 确保首页内容能正确同步到其他设备
             if (homeContentToSync !== undefined) {
               dataToSync.homeContent = homeContentToSync;
+              logger.log('[dataStore] 包含首页内容到同步数据:', {
+                length: homeContentToSync.length,
+                preview: homeContentToSync.substring(0, 50),
+              });
+            } else {
+              // 即使没有变化，也检查是否需要强制同步（如果快照中没有首页内容）
+              if (!snapshot || !snapshot.homeContent) {
+                // 快照中没有首页内容，说明是首次同步，需要同步当前内容
+                if (currentHomeContent) {
+                  dataToSync.homeContent = currentHomeContent;
+                  logger.log('[dataStore] 快照中没有首页内容，强制同步当前内容:', {
+                    length: currentHomeContent.length,
+                    preview: currentHomeContent.substring(0, 50),
+                  });
+                }
+              }
             }
             
             logger.log('[dataStore] 准备同步的数据（增量）:', {

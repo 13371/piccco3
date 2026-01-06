@@ -63,13 +63,52 @@ const SettingsPage = () => {
   
   // 手动同步（先上传本地数据，再下载服务器数据，一切以服务器为准）
   const handleManualSync = async () => {
-    clearSyncError();
-    // 先上传本地数据（如果有待同步的变更）
-    if (pendingChanges) {
-      await syncDataToServer();
+    // 如果正在同步，不重复执行
+    if (isUploading || isDownloading) {
+      console.warn('[SettingsPage] 正在同步中，跳过重复请求');
+      return;
     }
-    // 然后从服务器下载数据并合并（一切以服务器为准）
-    await syncDataFromServer(0, true); // 强制优先使用服务器数据
+    
+    clearSyncError();
+    
+    try {
+      // 添加超时保护
+      const timeoutId = setTimeout(() => {
+        console.error('[SettingsPage] 同步超时（30秒），强制重置状态');
+        forceResetSyncState();
+      }, 30000);
+      
+      // 先上传本地数据（如果有待同步的变更）
+      if (pendingChanges) {
+        try {
+          await Promise.race([
+            syncDataToServer(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('上传超时')), 25000))
+          ]);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          console.error('[SettingsPage] 上传失败:', error);
+          // 即使上传失败，也继续尝试下载
+        }
+      }
+      
+      // 然后从服务器下载数据并合并（一切以服务器为准）
+      try {
+        await Promise.race([
+          syncDataFromServer(0, true), // 强制优先使用服务器数据
+          new Promise((_, reject) => setTimeout(() => reject(new Error('下载超时')), 25000))
+        ]);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('[SettingsPage] 下载失败:', error);
+        throw error;
+      }
+      
+      clearTimeout(timeoutId);
+    } catch (error) {
+      console.error('[SettingsPage] 同步失败:', error);
+      // 错误已经通过 syncError 状态显示，不需要额外处理
+    }
   };
   
   // 获取同步状态文本
