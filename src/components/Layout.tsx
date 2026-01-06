@@ -85,6 +85,7 @@ const Layout = () => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
+    const forceResetSyncState = useDataStore.getState().forceResetSyncState;
     
     // 延迟同步，避免与登录时的同步冲突（一切以服务器为准）
     // homeContent 的同步已由 dataStore 统一管理，不需要单独调用
@@ -95,6 +96,26 @@ const Layout = () => {
     return () => {
       clearTimeout(initialSyncTimer);
     };
+  }, [isAuthenticated, isBanned]);
+
+  // 定期检查同步状态，如果卡住则自动重置（防止同步卡住）
+  useEffect(() => {
+    if (!isAuthenticated || isBanned) return;
+    
+    const dataStore = useDataStore.getState();
+    const checkInterval = setInterval(() => {
+      const state = dataStore;
+      const lastSyncTime = state.lastSyncTime;
+      const timeSinceLastSync = lastSyncTime ? Date.now() - lastSyncTime : Infinity;
+      
+      // 如果同步状态异常（超过60秒没有更新），强制重置
+      if ((state.isUploading || state.isDownloading) && timeSinceLastSync > 60000) {
+        console.warn('[Layout] 检测到同步状态异常（超过60秒），强制重置');
+        dataStore.forceResetSyncState();
+      }
+    }, 10000); // 每10秒检查一次
+    
+    return () => clearInterval(checkInterval);
   }, [isAuthenticated, isBanned]);
 
   // 页面可见性变化时自动同步（刷新网页、切换标签页等）

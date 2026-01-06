@@ -47,9 +47,19 @@ const TrashPage = () => {
     const items: TrashItem[] = [];
     
     // 调试：记录所有数据
-    const deletedFolders = folders.filter((f) => f.isDeleted && f.deletedAt);
-    const deletedNotes = notes.filter((n) => n.isDeleted && n.deletedAt);
-    const deletedUrls = urls.filter((u) => u.isDeleted && u.deletedAt);
+    // 修复：只检查 isDeleted，不要求 deletedAt（因为服务器可能返回 deletedAt: null）
+    const deletedFolders = folders.filter((f) => f.isDeleted === true);
+    const deletedNotes = notes.filter((n) => n.isDeleted === true);
+    const deletedUrls = urls.filter((u) => u.isDeleted === true);
+    
+    // 详细调试：检查每个文件夹的 isDeleted 状态
+    const foldersWithDeletedStatus = folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      isDeleted: f.isDeleted,
+      deletedAt: f.deletedAt,
+      hasDeletedAt: !!f.deletedAt,
+    }));
     
     console.log('[TrashPage] 回收站数据统计:', {
       totalFolders: folders.length,
@@ -60,13 +70,24 @@ const TrashPage = () => {
       deletedUrls: deletedUrls.length,
     });
     
+    console.log('[TrashPage] 所有文件夹的删除状态:', foldersWithDeletedStatus);
+    
+    // 如果应该有已删除的项目但没有找到，输出警告
+    if (folders.length > 0 && deletedFolders.length === 0 && deletedNotes.length === 0 && deletedUrls.length === 0) {
+      console.warn('[TrashPage] ⚠️ 警告：有数据但没有找到已删除的项目！', {
+        folders: folders.map(f => ({ id: f.id, name: f.name, isDeleted: f.isDeleted, deletedAt: f.deletedAt })),
+        notes: notes.map(n => ({ id: n.id, isDeleted: n.isDeleted, deletedAt: n.deletedAt })),
+        urls: urls.map(u => ({ id: u.id, isDeleted: u.isDeleted, deletedAt: u.deletedAt })),
+      });
+    }
+    
     // 添加已删除的文件夹
     deletedFolders.forEach((folder) => {
       items.push({
         id: folder.id,
         type: 'folder',
         data: folder,
-        deletedAt: folder.deletedAt!,
+        deletedAt: folder.deletedAt || folder.updatedAt || Date.now(), // 如果 deletedAt 为 null，使用 updatedAt 或当前时间
       });
     });
     
@@ -76,7 +97,7 @@ const TrashPage = () => {
         id: note.id,
         type: 'note',
         data: note,
-        deletedAt: note.deletedAt!,
+        deletedAt: note.deletedAt || note.updatedAt || Date.now(), // 如果 deletedAt 为 null，使用 updatedAt 或当前时间
       });
     });
     
@@ -86,7 +107,7 @@ const TrashPage = () => {
         id: url.id,
         type: 'url',
         data: url,
-        deletedAt: url.deletedAt!,
+        deletedAt: url.deletedAt || url.updatedAt || Date.now(), // 如果 deletedAt 为 null，使用 updatedAt 或当前时间
       });
     });
     

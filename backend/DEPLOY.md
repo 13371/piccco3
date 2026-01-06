@@ -282,3 +282,21 @@ env: {
 - 停止服务：`pm2 stop piccco-backend`
 - 查看资源使用：`pm2 monit`
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

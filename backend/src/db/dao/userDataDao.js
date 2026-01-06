@@ -48,6 +48,8 @@ async function getUserData(userId) {
       urls,
       trash: [], // 向后兼容
       permanentlyDeletedFolderIds: settings.permanentlyDeletedFolderIds || [],
+      permanentlyDeletedNoteIds: settings.permanentlyDeletedNoteIds || [],
+      permanentlyDeletedUrlIds: settings.permanentlyDeletedUrlIds || [],
       settings: settings.settings || getDefaultSettings().settings,
       lastSyncAt: settings.lastSyncAt,
     };
@@ -346,10 +348,12 @@ async function saveUserData(userId, data) {
     // 4. 保存设置
     const settings = data.settings || getDefaultSettings().settings;
     const permanentlyDeletedFolderIds = data.permanentlyDeletedFolderIds || [];
+    const permanentlyDeletedNoteIds = data.permanentlyDeletedNoteIds || [];
+    const permanentlyDeletedUrlIds = data.permanentlyDeletedUrlIds || [];
     
     await client.query(
-      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, permanently_deleted_note_ids, permanently_deleted_url_ids, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) 
        DO UPDATE SET 
          sort_mode = EXCLUDED.sort_mode,
@@ -358,6 +362,8 @@ async function saveUserData(userId, data) {
          night_mode = EXCLUDED.night_mode,
          last_sync_at = EXCLUDED.last_sync_at,
          permanently_deleted_folder_ids = EXCLUDED.permanently_deleted_folder_ids,
+         permanently_deleted_note_ids = EXCLUDED.permanently_deleted_note_ids,
+         permanently_deleted_url_ids = EXCLUDED.permanently_deleted_url_ids,
          updated_at = CURRENT_TIMESTAMP`,
       [
         userId,
@@ -367,6 +373,8 @@ async function saveUserData(userId, data) {
         settings.nightMode || 'auto',
         Date.now(),
         permanentlyDeletedFolderIds,
+        permanentlyDeletedNoteIds,
+        permanentlyDeletedUrlIds,
       ]
     );
 
@@ -476,6 +484,8 @@ function formatSettings(row) {
       nightMode: row.night_mode || 'auto',
     },
     permanentlyDeletedFolderIds: row.permanently_deleted_folder_ids || [],
+    permanentlyDeletedNoteIds: row.permanently_deleted_note_ids || [],
+    permanentlyDeletedUrlIds: row.permanently_deleted_url_ids || [],
     lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).getTime() : null,
   };
 }
@@ -492,6 +502,8 @@ function getDefaultSettings() {
       nightMode: 'auto',
     },
     permanentlyDeletedFolderIds: [],
+    permanentlyDeletedNoteIds: [],
+    permanentlyDeletedUrlIds: [],
     lastSyncAt: null,
   };
 }

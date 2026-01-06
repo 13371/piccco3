@@ -77,3 +77,21 @@ pm2 logs piccco-backend
    - 检查 `.env` 文件配置
    - 查看日志：`pm2 logs piccco-backend --err`
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

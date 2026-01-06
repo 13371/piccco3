@@ -111,3 +111,21 @@ echo "   firewall-cmd --permanent --add-port=37040/tcp"
 echo "   firewall-cmd --reload"
 echo ""
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

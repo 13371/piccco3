@@ -51,3 +51,21 @@ echo "2. 或者配置 Nginx 指向 dist/ 目录"
 echo "3. 重启 Nginx: systemctl restart nginx"
 echo "=========================================="
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

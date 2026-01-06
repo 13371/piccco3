@@ -2272,7 +2272,9 @@ export const useDataStore = create<DataState>()(
               logger.warn('[dataStore] 检测到上传可能卡住（超过30秒），强制重置状态并继续上传');
               set({
                 isUploading: false,
+                isDownloading: false, // 同时重置下载状态，防止死锁
                 syncError: null,
+                pendingChanges: true, // 标记为有待同步的变更
               });
             } else {
               logger.log('[dataStore] 正在上传数据，跳过此次同步（非删除操作）', {
@@ -2292,6 +2294,7 @@ export const useDataStore = create<DataState>()(
               logger.warn('[dataStore] 检测到下载可能卡住（超过30秒），强制重置状态');
               set({
                 isDownloading: false,
+                isUploading: false, // 同时重置上传状态，防止死锁
                 syncError: null,
               });
             } else {
@@ -2423,6 +2426,7 @@ export const useDataStore = create<DataState>()(
               logger.error('[dataStore] 同步超时（30秒），强制重置状态');
               set({
                 isUploading: false,
+                isDownloading: false, // 同时重置下载状态，防止死锁
                 syncError: '同步超时，请检查网络连接',
                 syncSuccess: false,
                 pendingChanges: true, // 标记为有待同步的变更，以便重试

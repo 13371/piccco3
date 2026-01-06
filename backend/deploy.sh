@@ -99,3 +99,21 @@ echo "查看日志: pm2 logs piccco-backend"
 echo "重启服务: pm2 restart piccco-backend"
 echo "=========================================="
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

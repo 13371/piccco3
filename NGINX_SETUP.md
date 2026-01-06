@@ -175,3 +175,21 @@ chown -R www:www /www/wwwroot/piccco3/dist
 - [ ] Nginx 已重启：`systemctl restart nginx`
 - [ ] 浏览器缓存已清除
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

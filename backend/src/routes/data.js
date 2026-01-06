@@ -153,6 +153,11 @@ router.get('/sync', authenticateToken, async (req, res) => {
         .filter(Boolean)
     );
     
+    // 记录永久删除列表（用于调试）
+    if (permanentlyDeletedFolderIds.size > 0 || permanentlyDeletedNoteIds.size > 0 || permanentlyDeletedUrlIds.size > 0) {
+      logger.info('data', `GET /sync 永久删除列表: folders=${permanentlyDeletedFolderIds.size}, notes=${permanentlyDeletedNoteIds.size}, urls=${permanentlyDeletedUrlIds.size}`);
+    }
+    
     // 重要修复：在去重之前先过滤掉永久删除的项，确保这些项永远不会被返回
     // 这样可以防止永久删除的项在后续同步中被恢复
     const allFolders = deduplicateById(
