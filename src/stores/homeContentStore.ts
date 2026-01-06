@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useUserStore } from './userStore';
-import { API_BASE_URL } from '../config/api';
 
 /**
  * 首页大白框内容的存储
