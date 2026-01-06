@@ -9,8 +9,11 @@ import { API_BASE_URL } from '../config/api';
  */
 interface HomeContentState {
   content: string;
+  isTyping: boolean; // 标记用户是否正在输入
   setContent: (content: string) => void;
+  setContentWithoutSync: (content: string) => void; // 直接设置内容，不触发同步（用于服务器同步）
   clearContent: () => void;
+  setIsTyping: (isTyping: boolean) => void;
   syncFromServer: () => Promise<void>;
   syncToServer: () => Promise<void>;
 }
@@ -19,93 +22,74 @@ export const useHomeContentStore = create<HomeContentState>()(
   persist(
     (set, get) => ({
       content: '',
+      isTyping: false,
+      setIsTyping: (isTyping: boolean) => {
+        set({ isTyping });
+      },
       setContent: (content: string) => {
         const oldContent = get().content;
         set({ content });
-        // 自动同步到服务器（防抖1秒，只在有变化时同步）
+        // 不再自动同步，由 dataStore 统一管理同步
+        // 这样可以避免重复同步请求和死锁
+        // 使用 setTimeout 延迟触发，避免在同步过程中触发新的同步
         if (content !== oldContent) {
           setTimeout(() => {
-            get().syncToServer();
-          }, 1000);
+            import('./dataStore').then(({ useDataStore }) => {
+              const dataStore = useDataStore.getState();
+              // 只有在不在上传时才触发同步，避免死锁
+              if (!dataStore.isUploading && !dataStore.isDownloading) {
+                dataStore.syncDataToServer();
+              } else {
+                // 如果正在同步，标记为有待同步的变更
+                useDataStore.setState({ pendingChanges: true });
+              }
+            });
+          }, 100); // 延迟100ms，避免立即触发
         }
+      },
+      setContentWithoutSync: (content: string) => {
+        // 直接设置内容，不触发同步（用于服务器同步，避免循环）
+        set({ content });
       },
       clearContent: () => {
         set({ content: '' });
-        get().syncToServer();
+        // 不再自动同步，由 dataStore 统一管理同步
+        setTimeout(() => {
+          import('./dataStore').then(({ useDataStore }) => {
+            const dataStore = useDataStore.getState();
+            // 只有在不在上传时才触发同步，避免死锁
+            if (!dataStore.isUploading && !dataStore.isDownloading) {
+              dataStore.syncDataToServer();
+            } else {
+              // 如果正在同步，标记为有待同步的变更
+              useDataStore.setState({ pendingChanges: true });
+            }
+          });
+        }, 100);
       },
       syncFromServer: async () => {
-        const { currentUser, token } = useUserStore.getState();
-        if (!currentUser || !token) {
-          return;
-        }
-        
-        try {
-          const res = await fetch(`${API_BASE_URL}/v1/data/sync`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          
-          if (res.ok) {
-            const result = await res.json();
-            if (result.success && result.data && result.data.homeContent !== undefined) {
-              set({ content: result.data.homeContent || '' });
-            }
-          }
-        } catch (e) {
-          console.error('[homeContentStore] 从服务器同步失败:', e);
-        }
+        // 已废弃：不再单独同步，由 dataStore 统一管理
+        // 保留此方法以保持向后兼容，但不执行任何操作
+        console.log('[homeContentStore] syncFromServer 已废弃，由 dataStore 统一管理同步');
       },
       syncToServer: async () => {
-        const { currentUser, token } = useUserStore.getState();
-        if (!currentUser || !token) {
-          return;
-        }
-        
-        const content = get().content;
-        
-        try {
-          // 获取当前数据
-          const getRes = await fetch(`${API_BASE_URL}/v1/data/sync`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
+        // 已废弃：不再单独同步，由 dataStore 统一管理
+        // 保留此方法以保持向后兼容，但不执行任何操作
+        // 实际同步由 dataStore.syncDataToServer() 统一处理
+        console.log('[homeContentStore] syncToServer 已废弃，由 dataStore 统一管理同步');
+        // 触发 dataStore 同步（延迟执行，避免死锁）
+        setTimeout(() => {
+          import('./dataStore').then(({ useDataStore }) => {
+            const dataStore = useDataStore.getState();
+            // 只有在不在上传时才触发同步，避免死锁
+            if (!dataStore.isUploading && !dataStore.isDownloading) {
+              dataStore.syncDataToServer();
+            } else {
+              // 如果正在同步，标记为有待同步的变更
+              useDataStore.setState({ pendingChanges: true });
+            }
           });
-          
-          if (!getRes.ok) {
-            return;
-          }
-          
-          const getResult = await getRes.json();
-          if (!getResult.success || !getResult.data) {
-            return;
-          }
-          
-          // 合并数据并同步
-          const syncData = {
-            folders: getResult.data.folders || [],
-            notes: getResult.data.notes || [],
-            urls: getResult.data.urls || [],
-            homeContent: content, // 使用最新的首页内容
-            settings: getResult.data.settings,
-            permanentlyDeletedFolderIds: getResult.data.permanentlyDeletedFolderIds || [],
-          };
-          
-          const postRes = await fetch(`${API_BASE_URL}/v1/data/sync`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(syncData),
-          });
-          
-          if (!postRes.ok) {
-            console.error('[homeContentStore] 同步到服务器失败:', postRes.status);
-          }
-        } catch (e) {
-          console.error('[homeContentStore] 同步到服务器失败:', e);
-        }
+        }, 100);
       },
     }),
     {
