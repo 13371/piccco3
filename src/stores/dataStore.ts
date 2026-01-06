@@ -2110,7 +2110,40 @@ export const useDataStore = create<DataState>()(
           
           // 检查是否有实际变化（增量同步检测）
           const state = get();
-          const snapshot = state.lastSyncedSnapshot;
+          let snapshot = state.lastSyncedSnapshot;
+          
+          // 修复：如果快照是从 localStorage 恢复的，Map 可能被序列化为普通对象
+          // 需要确保快照中的 Map 是正确的类型
+          if (snapshot) {
+            // 检查并修复快照中的 Map（如果被序列化为普通对象）
+            if (!(snapshot.folders instanceof Map)) {
+              logger.warn('[dataStore] 快照中的 folders 不是 Map，正在修复...');
+              snapshot = {
+                folders: new Map<string, Folder>(Object.entries(snapshot.folders as any).map(([id, f]: [string, any]) => [id, f])),
+                notes: snapshot.notes instanceof Map ? snapshot.notes : new Map<string, Note>(Object.entries(snapshot.notes as any).map(([id, n]: [string, any]) => [id, n])),
+                urls: snapshot.urls instanceof Map ? snapshot.urls : new Map<string, Url>(Object.entries(snapshot.urls as any).map(([id, u]: [string, any]) => [id, u])),
+                homeContent: snapshot.homeContent || '',
+              };
+            }
+            if (!(snapshot.notes instanceof Map)) {
+              logger.warn('[dataStore] 快照中的 notes 不是 Map，正在修复...');
+              snapshot = {
+                folders: snapshot.folders instanceof Map ? snapshot.folders : new Map<string, Folder>(Object.entries(snapshot.folders as any).map(([id, f]: [string, any]) => [id, f])),
+                notes: new Map<string, Note>(Object.entries(snapshot.notes as any).map(([id, n]: [string, any]) => [id, n])),
+                urls: snapshot.urls instanceof Map ? snapshot.urls : new Map<string, Url>(Object.entries(snapshot.urls as any).map(([id, u]: [string, any]) => [id, u])),
+                homeContent: snapshot.homeContent || '',
+              };
+            }
+            if (!(snapshot.urls instanceof Map)) {
+              logger.warn('[dataStore] 快照中的 urls 不是 Map，正在修复...');
+              snapshot = {
+                folders: snapshot.folders instanceof Map ? snapshot.folders : new Map<string, Folder>(Object.entries(snapshot.folders as any).map(([id, f]: [string, any]) => [id, f])),
+                notes: snapshot.notes instanceof Map ? snapshot.notes : new Map<string, Note>(Object.entries(snapshot.notes as any).map(([id, n]: [string, any]) => [id, n])),
+                urls: new Map<string, Url>(Object.entries(snapshot.urls as any).map(([id, u]: [string, any]) => [id, u])),
+                homeContent: snapshot.homeContent || '',
+              };
+            }
+          }
           
           // 如果没有快照，说明是首次同步，需要同步
           if (!snapshot) {

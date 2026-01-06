@@ -40,9 +40,27 @@ function getApiBaseUrl(): string {
     }
   }
   
-  // 默认使用localhost（本地开发）
+  // 如果是在生产环境，且以上都未命中，则默认使用当前站点同源的 /api 路径
+  if (import.meta.env.PROD) {
+    const { protocol, host } = window.location;
+    const prodUrl = `${protocol}//${host}/api`;
+    console.log('[API配置] 生产环境默认地址:', prodUrl);
+    return prodUrl;
+  }
+  
+  // 检查是否在生产环境（通过 hostname 判断，避免依赖环境变量）
+  // 如果 hostname 不是 localhost 或 127.0.0.1，且不是开发环境，则使用生产环境配置
+  const hostname = window.location.hostname;
+  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !import.meta.env.DEV) {
+    const { protocol, host } = window.location;
+    const prodUrl = `${protocol}//${host}/api`;
+    console.log('[API配置] 检测到生产环境（通过 hostname），使用:', prodUrl);
+    return prodUrl;
+  }
+
+  // 默认开发环境：localhost:4000/api
   const defaultUrl = 'http://localhost:4000/api';
-  console.log('[API配置] 使用默认地址:', defaultUrl);
+  console.log('[API配置] 开发环境使用默认地址:', defaultUrl);
   return defaultUrl;
 }
 
