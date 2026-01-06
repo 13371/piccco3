@@ -85,7 +85,6 @@ const Layout = () => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
-    const forceResetSyncState = useDataStore.getState().forceResetSyncState;
     
     // 延迟同步，避免与登录时的同步冲突（一切以服务器为准）
     // homeContent 的同步已由 dataStore 统一管理，不需要单独调用

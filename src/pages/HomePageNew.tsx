@@ -180,7 +180,7 @@ const HomePageNew = () => {
               setIsTyping(false);
             }, 500);
           }}
-          onInput={(e) => {
+          onInput={() => {
             // 移动端输入事件，确保标记为正在输入
             isTypingRef.current = true;
             setIsTyping(true);
