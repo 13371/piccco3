@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware';
 interface HomeContentState {
   content: string;
   isTyping: boolean; // 标记用户是否正在输入
+  lastSavedTime: number; // 最后保存时间（用于判断是否真的在输入）
   setContent: (content: string) => void;
   setContentWithoutSync: (content: string) => void; // 直接设置内容，不触发同步（用于服务器同步）
   clearContent: () => void;
@@ -21,12 +22,13 @@ export const useHomeContentStore = create<HomeContentState>()(
     (set, get) => ({
       content: '',
       isTyping: false,
+      lastSavedTime: 0,
       setIsTyping: (isTyping: boolean) => {
         set({ isTyping });
       },
       setContent: (content: string) => {
         const oldContent = get().content;
-        set({ content });
+        set({ content, lastSavedTime: Date.now() }); // 更新最后保存时间
         // 不再自动同步，由 dataStore 统一管理同步
         // 这样可以避免重复同步请求和死锁
         // 使用 setTimeout 延迟触发，避免在同步过程中触发新的同步

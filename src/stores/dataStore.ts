@@ -1427,9 +1427,17 @@ export const useDataStore = create<DataState>()(
                 
                 // 只有当服务器内容与本地内容不同时才考虑更新
                 if (serverHomeContent !== localHomeContent) {
-                  // 如果用户正在输入，跳过同步（避免覆盖用户输入）
-                  if (isTyping) {
-                    logger.log('[dataStore] 用户正在输入，跳过首页内容同步');
+                  // 如果用户正在输入，检查是否真的在输入（移动端可能 isTyping 状态没有及时清除）
+                  // 如果本地内容长时间没有变化（超过5秒），认为用户已经停止输入
+                  const lastSavedTime = (homeContentStore as any).lastSavedTime || 0;
+                  const timeSinceLastSave = Date.now() - lastSavedTime;
+                  const isReallyTyping = isTyping && timeSinceLastSave < 5000; // 5秒内保存过，认为还在输入
+                  
+                  if (isReallyTyping) {
+                    logger.log('[dataStore] 用户正在输入（最近5秒内有保存），跳过首页内容同步', {
+                      isTyping,
+                      timeSinceLastSave,
+                    });
                   }
                   // 如果本地内容为空，使用服务器内容
                   else if (localHomeContent === '') {

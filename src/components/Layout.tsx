@@ -85,13 +85,11 @@ const Layout = () => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
-    const syncHomeContent = useHomeContentStore.getState().syncFromServer;
     
     // 延迟同步，避免与登录时的同步冲突（一切以服务器为准）
+    // homeContent 的同步已由 dataStore 统一管理，不需要单独调用
     const initialSyncTimer = setTimeout(() => {
-      syncDataFromServer(0, true); // 强制优先使用服务器数据
-      // 同步首页内容
-      syncHomeContent();
+      syncDataFromServer(0, true); // 强制优先使用服务器数据（包含 homeContent）
     }, 1000);
     
     return () => {
@@ -105,29 +103,55 @@ const Layout = () => {
     if (!isAuthenticated || isBanned) return;
     
     const syncDataFromServer = useDataStore.getState().syncDataFromServer;
-    const syncHomeContent = useHomeContentStore.getState().syncFromServer;
+    // homeContent 的同步已由 dataStore 统一管理，不需要单独调用
     const syncTimers: ReturnType<typeof setTimeout>[] = [];
     
-    // 页面可见性变化处理
+    // 页面可见性变化处理（移动端和桌面端都支持）
     const handleVisibilityChangeWrapper = () => {
       if (document.visibilityState === 'visible') {
         // 页面变为可见时，从服务器同步数据（确保B设备刷新后能获取最新数据）
         const syncTimer = setTimeout(() => {
           console.log('[Layout] 页面可见，强制从服务器同步数据');
-          syncDataFromServer(0, true); // 强制优先使用服务器数据
-          syncHomeContent(); // 同步首页内容
+          syncDataFromServer(0, true); // 强制优先使用服务器数据（包含 homeContent）
         }, 300);
         syncTimers.push(syncTimer);
       } else if (document.visibilityState === 'hidden') {
-        // 页面隐藏时，立即同步本地变更到服务器
+        // 页面隐藏时，立即同步本地变更到服务器（移动端切换应用时）
         console.log('[Layout] 页面隐藏，立即同步数据');
         const { currentUser } = useUserStore.getState();
         if (currentUser) {
-          // 使用 syncDataToServer 同步（会检查是否有变化）
+          // 先标记首页内容不再输入（移动端可能还在输入状态）
+          const homeContentStore = useHomeContentStore.getState();
+          homeContentStore.setIsTyping(false);
+          
+          // 使用 syncDataToServer 同步（会检查是否有变化，包含 homeContent）
           useDataStore.getState().syncDataToServer();
-          // 同步首页内容
-          useHomeContentStore.getState().syncToServer();
         }
+      }
+    };
+    
+    // 移动端浏览器特有事件：pageshow/pagehide（处理前进/后退缓存）
+    const handlePageShow = (e: PageTransitionEvent) => {
+      // 如果是从缓存恢复（移动端浏览器常见），需要重新同步
+      if (e.persisted) {
+        console.log('[Layout] 页面从缓存恢复（移动端），强制同步数据');
+        setTimeout(() => {
+          syncDataFromServer(0, true);
+        }, 500);
+      }
+    };
+    
+    const handlePageHide = () => {
+      // 页面隐藏前，立即同步（移动端浏览器切换标签页时）
+      console.log('[Layout] 页面隐藏（移动端），立即同步数据');
+      const { currentUser } = useUserStore.getState();
+      if (currentUser) {
+        // 先标记首页内容不再输入
+        const homeContentStore = useHomeContentStore.getState();
+        homeContentStore.setIsTyping(false);
+        
+        // 立即同步
+        useDataStore.getState().syncDataToServer();
       }
     };
     
@@ -136,19 +160,20 @@ const Layout = () => {
       // 延迟1秒同步，确保登录同步已完成
       const syncTimer = setTimeout(() => {
         console.log('[Layout] 页面加载完成，强制从服务器同步数据');
-        syncDataFromServer(0, true); // 强制优先使用服务器数据
-        syncHomeContent(); // 同步首页内容
+        syncDataFromServer(0, true); // 强制优先使用服务器数据（包含 homeContent）
       }, 1000);
       syncTimers.push(syncTimer);
     };
     
     // 页面获得焦点时同步（切换回标签页时）
     const handleFocus = () => {
+      // 先触发上传，再同步
+      useDataStore.getState().syncDataToServer(); // 先保存本地内容到服务器（包含 homeContent）
+      
       const syncTimer = setTimeout(() => {
         console.log('[Layout] 页面获得焦点，强制从服务器同步数据');
-        syncDataFromServer(0, true); // 强制优先使用服务器数据
-        syncHomeContent(); // 同步首页内容
-      }, 300);
+        syncDataFromServer(0, true); // 强制优先使用服务器数据（包含 homeContent）
+      }, 500); // 延迟500ms，确保保存完成
       syncTimers.push(syncTimer);
     };
     
@@ -156,8 +181,7 @@ const Layout = () => {
     const fallbackSyncInterval = setInterval(() => {
       console.log('[Layout] 兜底同步（3分钟）');
       // 只从服务器拉取，不上传（避免无变化时也上传）
-      syncDataFromServer(0, true); // 强制优先使用服务器数据
-      syncHomeContent(); // 同步首页内容
+      syncDataFromServer(0, true); // 强制优先使用服务器数据（包含 homeContent）
     }, 3 * 60 * 1000); // 3分钟
     
     // 监听网络状态，恢复网络后自动同步
@@ -165,12 +189,11 @@ const Layout = () => {
       console.log('[Layout] 网络恢复，自动同步');
       setTimeout(() => {
         // 延迟1秒，确保网络稳定
-        syncDataFromServer(0, true);
-        syncHomeContent();
+        syncDataFromServer(0, true); // 包含 homeContent
         // 如果有未同步的变更，触发上传
         const { pendingChanges } = useDataStore.getState();
         if (pendingChanges) {
-          useDataStore.getState().syncDataToServer();
+          useDataStore.getState().syncDataToServer(); // 包含 homeContent
         }
       }, 1000);
     };
@@ -190,6 +213,9 @@ const Layout = () => {
     // 添加事件监听器
     document.addEventListener('visibilitychange', handleVisibilityChangeWrapper);
     window.addEventListener('focus', handleFocus);
+    // 移动端浏览器特有事件
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('pagehide', handlePageHide);
     
     // 清理函数
     return () => {
@@ -201,6 +227,8 @@ const Layout = () => {
       window.removeEventListener('load', handleLoad);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [isAuthenticated, isBanned]);
 
