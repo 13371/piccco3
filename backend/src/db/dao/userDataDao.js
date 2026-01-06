@@ -256,8 +256,8 @@ async function saveUserData(userId, data) {
       // 批量插入（优化：减少数据库往返）
       for (const folder of data.folders) {
         await client.query(
-          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              name = EXCLUDED.name,
@@ -266,7 +266,8 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at`,
+             updated_at = EXCLUDED.updated_at,
+             version = EXCLUDED.version`,
           [
             folder.id,
             userId,
@@ -278,6 +279,7 @@ async function saveUserData(userId, data) {
             folder.deletedAt || null,
             folder.createdAt || now,
             folder.updatedAt || now,
+            folder.version || 1,
           ]
         );
       }
@@ -287,8 +289,8 @@ async function saveUserData(userId, data) {
     if (data.notes && Array.isArray(data.notes)) {
       for (const note of data.notes) {
         await client.query(
-          `INSERT INTO notes (id, user_id, folder_id, title, content, is_starred, is_deleted, deleted_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO notes (id, user_id, folder_id, title, content, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              folder_id = EXCLUDED.folder_id,
@@ -297,7 +299,8 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at`,
+             updated_at = EXCLUDED.updated_at,
+             version = EXCLUDED.version`,
           [
             note.id,
             userId,
@@ -309,6 +312,7 @@ async function saveUserData(userId, data) {
             note.deletedAt || null,
             note.createdAt || now,
             note.updatedAt || now,
+            note.version || 1,
           ]
         );
       }
@@ -318,8 +322,8 @@ async function saveUserData(userId, data) {
     if (data.urls && Array.isArray(data.urls)) {
       for (const url of data.urls) {
         await client.query(
-          `INSERT INTO urls (id, user_id, folder_id, title, url, is_starred, is_deleted, deleted_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO urls (id, user_id, folder_id, title, url, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              folder_id = EXCLUDED.folder_id,
@@ -328,7 +332,8 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at`,
+             updated_at = EXCLUDED.updated_at,
+             version = EXCLUDED.version`,
           [
             url.id,
             userId,
@@ -340,6 +345,7 @@ async function saveUserData(userId, data) {
             url.deletedAt || null,
             url.createdAt || now,
             url.updatedAt || now,
+            url.version || 1,
           ]
         );
       }
@@ -435,6 +441,7 @@ function formatFolder(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+    version: row.version || 1,
   };
 }
 
@@ -452,6 +459,7 @@ function formatNote(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+    version: row.version || 1,
   };
 }
 
@@ -469,6 +477,7 @@ function formatUrl(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+    version: row.version || 1,
   };
 }
 
