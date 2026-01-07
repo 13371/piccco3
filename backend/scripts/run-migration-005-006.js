@@ -28,6 +28,14 @@ async function runMigration() {
       password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
     };
     
+    // 验证密码是否设置
+    if (!dbConfig.password) {
+      console.error('❌ 错误：未设置 POSTGRES_PASSWORD 环境变量');
+      console.error('   请设置：export POSTGRES_PASSWORD="your_postgres_password"');
+      console.error('   或者在执行脚本时：POSTGRES_PASSWORD=your_password node scripts/run-migration-005-006.js');
+      process.exit(1);
+    }
+    
     // 如果使用普通用户，提示需要超级用户权限
     if (dbConfig.user !== 'postgres' && !process.env.POSTGRES_USER) {
       console.log('⚠️  警告：当前使用的是普通数据库用户，可能需要超级用户权限');

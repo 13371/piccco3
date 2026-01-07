@@ -18,3 +18,4 @@ COMMENT ON COLUMN folders.version IS '版本号，用于冲突检测';
 COMMENT ON COLUMN notes.version IS '版本号，用于冲突检测';
 COMMENT ON COLUMN urls.version IS '版本号，用于冲突检测';
 
+
