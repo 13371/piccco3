@@ -444,6 +444,10 @@ router.post('/sync', authenticateToken, async (req, res) => {
         if (existing && folder.deletedAt === undefined) {
           folder.deletedAt = existing.deletedAt;
         }
+        // 重要：如果 incoming 未提供 password，保持服务器的 password（隐私密码不应该被覆盖）
+        if (existing && folder.password === undefined && existing.password !== undefined) {
+          folder.password = existing.password;
+        }
         folderMap.set(folder.id, folder);
         
         // 记录更新日志（用于调试）
@@ -701,8 +705,11 @@ router.post('/sync', authenticateToken, async (req, res) => {
       logger.info('data', `同步数据（包含已删除的项）: folders=${finalFoldersWithUpdatedAt.length} (已删除: ${deletedFoldersCount}), notes=${finalNotesWithUpdatedAt.length} (已删除: ${deletedNotesCount}), urls=${finalUrlsWithUpdatedAt.length} (已删除: ${deletedUrlsCount})`);
     }
     
-    // 合并首页内容：如果客户端提供了，使用客户端的；否则保留服务器的
-    const finalHomeContent = homeContent !== undefined ? homeContent : (currentData.homeContent || '');
+    // 合并首页内容：如果客户端提供了非空内容，使用客户端的；否则保留服务器的
+    // 这样可以避免空字符串覆盖服务器内容，同时允许客户端更新内容
+    const finalHomeContent = (homeContent !== undefined && homeContent !== '') 
+      ? homeContent 
+      : (currentData.homeContent || '');
     
     const userData = {
       folders: finalFoldersWithUpdatedAt,

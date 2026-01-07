@@ -47,6 +47,7 @@ async function getUserData(userId) {
       notes,
       urls,
       trash: [], // 向后兼容
+      homeContent: settings.homeContent || '', // 首页大白框内容
       permanentlyDeletedFolderIds: settings.permanentlyDeletedFolderIds || [],
       permanentlyDeletedNoteIds: settings.permanentlyDeletedNoteIds || [],
       permanentlyDeletedUrlIds: settings.permanentlyDeletedUrlIds || [],
@@ -256,8 +257,8 @@ async function saveUserData(userId, data) {
       // 批量插入（优化：减少数据库往返）
       for (const folder of data.folders) {
         await client.query(
-          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at, version, password)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              name = EXCLUDED.name,
@@ -267,7 +268,8 @@ async function saveUserData(userId, data) {
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
              updated_at = EXCLUDED.updated_at,
-             version = EXCLUDED.version`,
+             version = EXCLUDED.version,
+             password = COALESCE(EXCLUDED.password, folders.password)`,
           [
             folder.id,
             userId,
@@ -280,6 +282,7 @@ async function saveUserData(userId, data) {
             folder.createdAt || now,
             folder.updatedAt || now,
             folder.version || 1,
+            folder.password || null,
           ]
         );
       }
@@ -358,8 +361,8 @@ async function saveUserData(userId, data) {
     const permanentlyDeletedUrlIds = data.permanentlyDeletedUrlIds || [];
     
     await client.query(
-      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, permanently_deleted_note_ids, permanently_deleted_url_ids, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, permanently_deleted_note_ids, permanently_deleted_url_ids, home_content, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) 
        DO UPDATE SET 
          sort_mode = EXCLUDED.sort_mode,
@@ -370,6 +373,7 @@ async function saveUserData(userId, data) {
          permanently_deleted_folder_ids = EXCLUDED.permanently_deleted_folder_ids,
          permanently_deleted_note_ids = EXCLUDED.permanently_deleted_note_ids,
          permanently_deleted_url_ids = EXCLUDED.permanently_deleted_url_ids,
+         home_content = COALESCE(EXCLUDED.home_content, user_settings.home_content),
          updated_at = CURRENT_TIMESTAMP`,
       [
         userId,
@@ -381,6 +385,7 @@ async function saveUserData(userId, data) {
         permanentlyDeletedFolderIds,
         permanentlyDeletedNoteIds,
         permanentlyDeletedUrlIds,
+        data.homeContent || '',
       ]
     );
 
@@ -442,6 +447,7 @@ function formatFolder(row) {
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
     version: row.version || 1,
+    password: row.password || undefined, // 隐私文件夹密码
   };
 }
 
@@ -492,6 +498,7 @@ function formatSettings(row) {
       language: row.language || 'zh',
       nightMode: row.night_mode || 'auto',
     },
+    homeContent: row.home_content || '', // 首页大白框内容
     permanentlyDeletedFolderIds: row.permanently_deleted_folder_ids || [],
     permanentlyDeletedNoteIds: row.permanently_deleted_note_ids || [],
     permanentlyDeletedUrlIds: row.permanently_deleted_url_ids || [],
