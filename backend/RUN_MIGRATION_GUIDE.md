@@ -62,3 +62,4 @@ AND column_name IN ('permanently_deleted_note_ids', 'permanently_deleted_url_ids
 
 如果返回 2 行，说明迁移成功。
 
+
