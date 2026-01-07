@@ -18,14 +18,22 @@ async function runMigration() {
     console.log('006: 添加首页内容字段');
     console.log('==========================================\n');
 
-    // 使用数据库配置
+    // 使用 postgres 超级用户连接（需要修改表结构）
+    // 优先使用 POSTGRES_USER 和 POSTGRES_PASSWORD（超级用户）
     const dbConfig = {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
       database: process.env.DB_NAME || 'piccco',
-      user: process.env.DB_USER || process.env.POSTGRES_USER || 'postgres',
-      password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || '',
+      user: process.env.POSTGRES_USER || process.env.DB_USER || 'postgres',
+      password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
     };
+    
+    // 如果使用普通用户，提示需要超级用户权限
+    if (dbConfig.user !== 'postgres' && !process.env.POSTGRES_USER) {
+      console.log('⚠️  警告：当前使用的是普通数据库用户，可能需要超级用户权限');
+      console.log('   如果迁移失败，请设置 POSTGRES_USER 和 POSTGRES_PASSWORD 环境变量');
+      console.log('   或者使用 postgres 超级用户执行迁移\n');
+    }
 
     console.log('连接到数据库...');
     console.log(`  主机: ${dbConfig.host}`);
