@@ -144,13 +144,14 @@ function mergeItem<T extends { id: string; updatedAt?: number; createdAt?: numbe
   if (prioritizeServer) {
     // 服务器有数据，强制使用服务器数据（完全覆盖本地数据）
     // 这确保服务器数据始终是权威来源
-    // 但保留本地的 createdAt（如果服务器没有或本地更新）
+    // 但保留本地的 createdAt（如果服务器没有或服务器createdAt为0，说明是本地新创建的）
     const localCreatedAt = local.createdAt || 0;
     const serverCreatedAt = server.createdAt || 0;
-    // 如果本地创建时间更新（说明是本地新创建的），保留本地创建时间
-    const finalCreatedAt = (localCreatedAt > serverCreatedAt && serverCreatedAt === 0) 
-      ? localCreatedAt 
-      : (serverCreatedAt || localCreatedAt);
+    // 如果服务器createdAt为0或不存在，且本地有createdAt，保留本地创建时间
+    // 如果服务器有createdAt且不为0，使用服务器创建时间
+    const finalCreatedAt = (serverCreatedAt > 0) 
+      ? serverCreatedAt 
+      : (localCreatedAt > 0 ? localCreatedAt : Date.now());
     
     return {
       ...server,
@@ -1945,11 +1946,15 @@ export const useDataStore = create<DataState>()(
                 const finalUrlsDedup = deduplicateById(finalUrls.filter((url: Url) => !permanentlyDeletedUrlIds.has(url.id)));
                 
                 // 更新同步快照（用于增量同步）
+                // 重要：使用实际更新后的homeContent，而不是直接使用serverData.homeContent
+                // 因为如果用户正在输入，可能没有更新homeContentStore，但快照应该反映实际状态
+                const { useHomeContentStore } = await import('./homeContentStore');
+                const actualHomeContent = useHomeContentStore.getState().content || '';
                 const newSnapshot = {
                   folders: new Map<string, Folder>(finalFoldersDedup.map(f => [f.id, f])),
                   notes: new Map<string, Note>(finalNotesDedup.map(n => [n.id, n])),
                   urls: new Map<string, Url>(finalUrlsDedup.map(u => [u.id, u])),
-                  homeContent: serverData.homeContent || '',
+                  homeContent: actualHomeContent, // 使用实际更新后的homeContent
                 };
                 
                 set({
@@ -2552,15 +2557,16 @@ export const useDataStore = create<DataState>()(
                   logger.log('[dataStore] 检测到新建的文件夹，需要同步:', { id, name: folder.name });
                   foldersToSync.push(folder);
                 } else {
-                  // 检查是否有变化：updatedAt、isDeleted、name、color、type 等
+                  // 检查是否有变化：updatedAt、isDeleted、name、color、type、password 等
                   const hasUpdatedAtChange = oldFolder.updatedAt !== folder.updatedAt;
                   const hasDeletedChange = oldFolder.isDeleted !== folder.isDeleted;
                   const hasNameChange = oldFolder.name !== folder.name;
                   const hasColorChange = oldFolder.color !== folder.color;
                   const hasTypeChange = oldFolder.type !== folder.type;
+                  const hasPasswordChange = oldFolder.password !== folder.password;
                   const hasVersionChange = (oldFolder as any).version !== (folder as any).version;
                   
-                  if (hasUpdatedAtChange || hasDeletedChange || hasNameChange || hasColorChange || hasTypeChange || hasVersionChange || (isDeleteOperation && folder.isDeleted)) {
+                  if (hasUpdatedAtChange || hasDeletedChange || hasNameChange || hasColorChange || hasTypeChange || hasPasswordChange || hasVersionChange || (isDeleteOperation && folder.isDeleted)) {
                     // 有变化的文件夹，需要同步
                     logger.log('[dataStore] 检测到文件夹变化，需要同步:', { 
                       id, 
@@ -2572,6 +2578,7 @@ export const useDataStore = create<DataState>()(
                       hasNameChange,
                       hasColorChange,
                       hasTypeChange,
+                      hasPasswordChange,
                       hasVersionChange,
                     });
                     foldersToSync.push(folder);
