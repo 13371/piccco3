@@ -243,13 +243,16 @@ router.post('/login', loginLimiter, async (req, res) => {
     return res.status(400).json({ message: '密码格式不正确' });
   }
   
+  // 规范化邮箱（与注册时保持一致）
+  const emailKey = normalizeEmail(email);
+  
   // 减少敏感信息日志（生产环境不记录邮箱）
   if (process.env.NODE_ENV !== 'production') {
-    logger.debug('auth', 'login request:', { email: email.substring(0, 3) + '***', passwordProvided: !!password });
+    logger.debug('auth', 'login request:', { email: emailKey.substring(0, 3) + '***', passwordProvided: !!password });
   }
 
   try {
-    const user = await userStoreAdapter.findUserByEmail(email);
+    const user = await userStoreAdapter.findUserByEmail(emailKey);
     if (!user) {
       // 不泄露用户是否存在的信息，统一错误消息
       logger.warn('auth', `登录失败: 用户不存在 ${email.substring(0, 3)}***`);
@@ -466,7 +469,9 @@ router.get('/me', authenticateToken, async (req, res) => {
     // 验证用户是否存在
     const user = await userStoreAdapter.findUserById(userId);
     if (!user) {
-      return res.status(404).json({ message: '用户不存在' });
+      // 用户不存在（可能已被注销），返回401让前端自动退出
+      logger.warn('auth', `Token有效但用户不存在: userId=${userId}`);
+      return res.status(401).json({ message: '用户不存在或已被注销' });
     }
     
     // 返回用户信息（排除密码）

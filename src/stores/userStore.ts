@@ -510,6 +510,22 @@ export const useUserStore = create<UserState>()(
               'Authorization': `Bearer ${state.token}`,
             },
           });
+          
+          // 如果返回401（用户不存在或已被注销），清除登录状态并退出
+          if (res.status === 401) {
+            logger.warn('[userStore] 用户不存在或已被注销，自动退出登录');
+            set({
+              currentUser: null,
+              token: null,
+              refreshToken: null,
+            });
+            // 清除所有本地存储
+            localStorage.removeItem('piccco-data-storage');
+            localStorage.removeItem('piccco-message-storage');
+            localStorage.removeItem('piccco-user-storage');
+            return true;
+          }
+          
           if (res.ok) {
             const data = await res.json();
             const wasBanned = state.currentUser?.isBanned === true;

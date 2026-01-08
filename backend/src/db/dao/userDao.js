@@ -177,6 +177,17 @@ async function unbanUser(userId) {
  */
 async function deleteUser(userId) {
   try {
+    // 先查找用户信息（用于清除缓存）
+    const user = await findUserById(userId);
+    
+    // 清除用户相关的缓存
+    if (user) {
+      cache.del(`user:id:${userId}`);
+      if (user.email) {
+        cache.del(`user:email:${user.email}`);
+      }
+    }
+    
     // 由于外键约束，删除用户会自动删除相关数据
     await query('DELETE FROM users WHERE id = $1', [userId]);
     return true;
