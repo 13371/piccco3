@@ -134,6 +134,7 @@ export const useUserStore = create<UserState>()(
             // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧用户数据
             localStorage.removeItem('piccco-data-storage');
             localStorage.removeItem('piccco-message-storage');
+            localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
             
             // 初始化默认文件夹（确保只有3个默认文件夹）
             const defaultFolders = [
@@ -304,6 +305,7 @@ export const useUserStore = create<UserState>()(
           // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧数据
           localStorage.removeItem('piccco-data-storage');
           localStorage.removeItem('piccco-message-storage');
+          localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
           
           // 初始化默认文件夹（确保只有3个默认文件夹）
           const defaultFolders = [
@@ -523,6 +525,7 @@ export const useUserStore = create<UserState>()(
             localStorage.removeItem('piccco-data-storage');
             localStorage.removeItem('piccco-message-storage');
             localStorage.removeItem('piccco-user-storage');
+            localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
             return true;
           }
           

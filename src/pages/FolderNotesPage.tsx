@@ -98,24 +98,19 @@ const FolderNotesPage = () => {
         {sortedNotes.length === 0 ? (
           <div className="empty-state">{t('noNotes')}</div>
         ) : (
-          sortedNotes.map((noteItem) => {
-            // 防止缺失时间导致显示 1970：优先 updatedAt，其次 createdAt，最后用当前时间兜底
-            const ts = noteItem.updatedAt || noteItem.createdAt || Date.now();
-            const subtitle = format(new Date(ts), 'yyyy-MM-dd HH:mm');
-            return (
+          sortedNotes.map((noteItem) => (
             <div key={noteItem.id} onClick={() => handleEdit(noteItem.id)}>
               <ListItem
                 title={
                   noteItem.content.substring(0, 50) +
                   (noteItem.content.length > 50 ? '...' : '')
                 }
-                subtitle={subtitle}
+                subtitle={format(new Date(noteItem.updatedAt), 'yyyy-MM-dd HH:mm')}
                 isStarred={noteItem.isStarred}
                 onMenuClick={(e) => handleContextMenu(e, noteItem.id)}
               />
             </div>
-          );
-          })
+          ))
         )}
       </div>
 

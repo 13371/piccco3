@@ -49,6 +49,7 @@ async function getUserData(userId) {
       trash: [], // 向后兼容
       permanentlyDeletedFolderIds: settings.permanentlyDeletedFolderIds || [],
       settings: settings.settings || getDefaultSettings().settings,
+      homeContent: settings.homeContent || '',
       lastSyncAt: settings.lastSyncAt,
     };
   } catch (error) {
@@ -248,6 +249,8 @@ async function saveUserData(userId, data) {
   
   try {
     const now = Date.now();
+    // 获取当前数据（用于保留 homeContent 如果客户端没有提供）
+    const currentData = await getUserData(userId);
 
     // 1. 保存文件夹（使用 UPSERT，避免重复）
     if (data.folders && Array.isArray(data.folders)) {
@@ -345,17 +348,19 @@ async function saveUserData(userId, data) {
 
     // 4. 保存设置
     const settings = data.settings || getDefaultSettings().settings;
+    const homeContent = data.homeContent !== undefined ? data.homeContent : (currentData?.homeContent || '');
     const permanentlyDeletedFolderIds = data.permanentlyDeletedFolderIds || [];
     
     await client.query(
-      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, home_content, last_sync_at, permanently_deleted_folder_ids, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) 
        DO UPDATE SET 
          sort_mode = EXCLUDED.sort_mode,
          font_size = EXCLUDED.font_size,
          language = EXCLUDED.language,
          night_mode = EXCLUDED.night_mode,
+         home_content = EXCLUDED.home_content,
          last_sync_at = EXCLUDED.last_sync_at,
          permanently_deleted_folder_ids = EXCLUDED.permanently_deleted_folder_ids,
          updated_at = CURRENT_TIMESTAMP`,
@@ -365,6 +370,7 @@ async function saveUserData(userId, data) {
         settings.fontSize || 'medium',
         settings.language || 'zh',
         settings.nightMode || 'auto',
+        homeContent || '',
         Date.now(),
         permanentlyDeletedFolderIds,
       ]
@@ -488,6 +494,7 @@ function formatSettings(row) {
       language: row.language || 'zh',
       nightMode: row.night_mode || 'auto',
     },
+    homeContent: row.home_content || '',
     permanentlyDeletedFolderIds: row.permanently_deleted_folder_ids || [],
     lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).getTime() : null,
   };
@@ -504,6 +511,7 @@ function getDefaultSettings() {
       language: 'zh',
       nightMode: 'auto',
     },
+    homeContent: '',
     permanentlyDeletedFolderIds: [],
     lastSyncAt: null,
   };

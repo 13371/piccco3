@@ -130,27 +130,16 @@ router.get('/sync', authenticateToken, async (req, res) => {
     // 重要修复：同步接口必须返回所有数据（包括已删除的），以便前端能正确同步删除状态
     // 前端会根据 isDeleted 字段自行过滤显示，但同步时需要知道哪些项被删除了
     // 只过滤永久删除的文件夹
-    // 规范化时间，防止 createdAt/updatedAt 为空导致前端显示 1970
-    const normalizeItem = (item) => {
-      if (!item || typeof item !== 'object') return item;
-      const created = item.createdAt || item.updatedAt || Date.now();
-      const updated = item.updatedAt || item.createdAt || Date.now();
-      return { ...item, createdAt: created, updatedAt: updated };
-    };
-
     const foldersToReturn = allFolders
       .filter((folder) => !permanentlyDeletedFolderIds.has(folder.id))
-      .map(normalizeItem)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     
     // 返回所有笔记（包括已删除的），前端会自行过滤
     const notesToReturn = allNotes
-      .map(normalizeItem)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     
     // 返回所有网址（包括已删除的），前端会自行过滤
     const urlsToReturn = allUrls
-      .map(normalizeItem)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     
     // 统计已删除的项（用于日志）
@@ -176,6 +165,7 @@ router.get('/sync', authenticateToken, async (req, res) => {
           language: 'zh',
           nightMode: 'auto',
         },
+        homeContent: userData.homeContent || '',
         lastSyncAt: userData.lastSyncAt || null,
       },
     });
@@ -189,7 +179,7 @@ router.get('/sync', authenticateToken, async (req, res) => {
 router.post('/sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { folders, notes, urls, trash, settings, permanentlyDeletedFolderIds } = req.body || {};
+    const { folders, notes, urls, trash, settings, homeContent, permanentlyDeletedFolderIds } = req.body || {};
     
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ message: '用户ID无效' });
@@ -463,6 +453,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
       logger.info('data', `同步数据（包含已删除的项）: folders=${finalFoldersWithUpdatedAt.length} (已删除: ${deletedFoldersCount}), notes=${finalNotesWithUpdatedAt.length} (已删除: ${deletedNotesCount}), urls=${finalUrlsWithUpdatedAt.length} (已删除: ${deletedUrlsCount})`);
     }
     
+    // 处理 homeContent：如果客户端提供了 homeContent，使用客户端的；否则保留服务器的
+    const finalHomeContent = homeContent !== undefined && homeContent !== '' ? homeContent : (currentData.homeContent || '');
+    
     const userData = {
       folders: finalFoldersWithUpdatedAt,
       notes: finalNotesWithUpdatedAt,
@@ -475,6 +468,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         language: 'zh',
         nightMode: 'auto',
       },
+      homeContent: finalHomeContent,
     };
     
     logger.info('data', `保存用户数据: folders=${finalFoldersWithUpdatedAt.length}, notes=${finalNotesWithUpdatedAt.length}, urls=${finalUrlsWithUpdatedAt.length}, permanentlyDeletedFolderIds=${allPermanentlyDeletedIds.size}`);
