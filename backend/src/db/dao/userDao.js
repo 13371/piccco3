@@ -9,11 +9,14 @@ const bcrypt = require('bcryptjs');
  */
 async function createUser({ id, email, username, password, createdAt }) {
   try {
+    // 对密码进行 bcrypt 哈希处理
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     await query(
       `INSERT INTO users (id, email, username, password, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $5)
        ON CONFLICT (id) DO NOTHING`,
-      [id, email, username, password, createdAt || new Date().toISOString()]
+      [id, email, username, hashedPassword, createdAt || new Date().toISOString()]
     );
     
     const result = await query('SELECT * FROM users WHERE id = $1', [id]);
@@ -202,11 +205,14 @@ async function deleteUser(userId) {
  */
 async function updatePassword(email, newPassword) {
   try {
+    // 对密码进行 bcrypt 哈希处理
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
     await query(
       `UPDATE users 
        SET password = $1, updated_at = CURRENT_TIMESTAMP
        WHERE email = $2`,
-      [newPassword, email]
+      [hashedPassword, email]
     );
     
     // 清除缓存
