@@ -110,10 +110,16 @@ export const useUserStore = create<UserState>()(
 
           let data;
           try {
-            data = await res.json();
+            const text = await res.text();
+            logger.log('[userStore] 服务器响应文本:', text.substring(0, 200));
+            if (!text || text.trim() === '') {
+              logger.error('[userStore] 服务器返回空响应');
+              return { ok: false, message: '服务器返回空响应，请检查后端服务是否正常运行' };
+            }
+            data = JSON.parse(text);
           } catch (e) {
             logger.error('[userStore] JSON解析失败:', e);
-            return { ok: false, message: '服务器响应格式错误' };
+            return { ok: false, message: '服务器响应格式错误。可能原因：\n1. 后端服务未运行或崩溃\n2. 数据库连接失败\n3. 后端未部署最新代码' };
           }
 
           if (!res.ok) {
