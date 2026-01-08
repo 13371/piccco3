@@ -192,6 +192,13 @@ router.post('/register', registerLimiter, async (req, res) => {
 
   // 验证码正确，尝试创建用户
   try {
+    // 检查邮箱是否已存在
+    const existingUser = await userStoreAdapter.findUserByEmail(emailKey);
+    if (existingUser) {
+      logger.warn('auth', `注册失败: 邮箱已存在 ${email} (key=${emailKey})`);
+      return res.status(400).json({ message: '该邮箱已被注册，请直接登录或使用其他邮箱' });
+    }
+    
     const userId = Date.now().toString();
     const createdAt = new Date().toISOString();
     const user = await userStoreAdapter.createUser({ id: userId, email: emailKey, username, password, createdAt });
@@ -554,7 +561,32 @@ router.delete('/account', authenticateToken, async (req, res) => {
       });
     }
 
-    // 删除用户账户
+    // 删除用户所有相关数据（按顺序删除，避免外键约束问题）
+    try {
+      // 1. 删除用户数据（folders, notes, urls, settings）
+      await userStoreAdapter.deleteUserData(userId);
+      logger.info('auth', `已删除用户数据: ${user.email} (ID: ${userId})`);
+    } catch (e) {
+      logger.error('auth', `删除用户数据失败: ${user.email} (ID: ${userId})`, e);
+    }
+    
+    try {
+      // 2. 删除用户消息
+      await userStoreAdapter.deleteUserMessages(userId);
+      logger.info('auth', `已删除用户消息: ${user.email} (ID: ${userId})`);
+    } catch (e) {
+      logger.error('auth', `删除用户消息失败: ${user.email} (ID: ${userId})`, e);
+    }
+    
+    try {
+      // 3. 删除用户消息历史
+      await userStoreAdapter.deleteUserHistory(userId);
+      logger.info('auth', `已删除用户消息历史: ${user.email} (ID: ${userId})`);
+    } catch (e) {
+      logger.error('auth', `删除用户消息历史失败: ${user.email} (ID: ${userId})`, e);
+    }
+    
+    // 4. 最后删除用户账户（这会触发外键约束的级联删除，作为双重保险）
     await userStoreAdapter.deleteUser(userId);
     logger.info('auth', `用户账户已注销: ${user.email} (ID: ${userId})`);
     

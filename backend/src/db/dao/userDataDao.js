@@ -47,10 +47,7 @@ async function getUserData(userId) {
       notes,
       urls,
       trash: [], // 向后兼容
-      homeContent: settings.homeContent || '', // 首页大白框内容
       permanentlyDeletedFolderIds: settings.permanentlyDeletedFolderIds || [],
-      permanentlyDeletedNoteIds: settings.permanentlyDeletedNoteIds || [],
-      permanentlyDeletedUrlIds: settings.permanentlyDeletedUrlIds || [],
       settings: settings.settings || getDefaultSettings().settings,
       lastSyncAt: settings.lastSyncAt,
     };
@@ -257,8 +254,8 @@ async function saveUserData(userId, data) {
       // 批量插入（优化：减少数据库往返）
       for (const folder of data.folders) {
         await client.query(
-          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at, version, password)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `INSERT INTO folders (id, user_id, name, type, color, is_starred, is_deleted, deleted_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              name = EXCLUDED.name,
@@ -267,9 +264,7 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at,
-             version = EXCLUDED.version,
-             password = COALESCE(EXCLUDED.password, folders.password)`,
+             updated_at = EXCLUDED.updated_at`,
           [
             folder.id,
             userId,
@@ -281,8 +276,6 @@ async function saveUserData(userId, data) {
             folder.deletedAt || null,
             folder.createdAt || now,
             folder.updatedAt || now,
-            folder.version || 1,
-            folder.password || null,
           ]
         );
       }
@@ -292,8 +285,8 @@ async function saveUserData(userId, data) {
     if (data.notes && Array.isArray(data.notes)) {
       for (const note of data.notes) {
         await client.query(
-          `INSERT INTO notes (id, user_id, folder_id, title, content, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `INSERT INTO notes (id, user_id, folder_id, title, content, is_starred, is_deleted, deleted_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              folder_id = EXCLUDED.folder_id,
@@ -302,8 +295,7 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at,
-             version = EXCLUDED.version`,
+             updated_at = EXCLUDED.updated_at`,
           [
             note.id,
             userId,
@@ -315,7 +307,6 @@ async function saveUserData(userId, data) {
             note.deletedAt || null,
             note.createdAt || now,
             note.updatedAt || now,
-            note.version || 1,
           ]
         );
       }
@@ -325,8 +316,8 @@ async function saveUserData(userId, data) {
     if (data.urls && Array.isArray(data.urls)) {
       for (const url of data.urls) {
         await client.query(
-          `INSERT INTO urls (id, user_id, folder_id, title, url, is_starred, is_deleted, deleted_at, created_at, updated_at, version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `INSERT INTO urls (id, user_id, folder_id, title, url, is_starred, is_deleted, deleted_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (user_id, id) 
            DO UPDATE SET 
              folder_id = EXCLUDED.folder_id,
@@ -335,8 +326,7 @@ async function saveUserData(userId, data) {
              is_starred = EXCLUDED.is_starred,
              is_deleted = EXCLUDED.is_deleted,
              deleted_at = EXCLUDED.deleted_at,
-             updated_at = EXCLUDED.updated_at,
-             version = EXCLUDED.version`,
+             updated_at = EXCLUDED.updated_at`,
           [
             url.id,
             userId,
@@ -348,7 +338,6 @@ async function saveUserData(userId, data) {
             url.deletedAt || null,
             url.createdAt || now,
             url.updatedAt || now,
-            url.version || 1,
           ]
         );
       }
@@ -357,12 +346,10 @@ async function saveUserData(userId, data) {
     // 4. 保存设置
     const settings = data.settings || getDefaultSettings().settings;
     const permanentlyDeletedFolderIds = data.permanentlyDeletedFolderIds || [];
-    const permanentlyDeletedNoteIds = data.permanentlyDeletedNoteIds || [];
-    const permanentlyDeletedUrlIds = data.permanentlyDeletedUrlIds || [];
     
     await client.query(
-      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, permanently_deleted_note_ids, permanently_deleted_url_ids, home_content, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+      `INSERT INTO user_settings (user_id, sort_mode, font_size, language, night_mode, last_sync_at, permanently_deleted_folder_ids, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id) 
        DO UPDATE SET 
          sort_mode = EXCLUDED.sort_mode,
@@ -371,9 +358,6 @@ async function saveUserData(userId, data) {
          night_mode = EXCLUDED.night_mode,
          last_sync_at = EXCLUDED.last_sync_at,
          permanently_deleted_folder_ids = EXCLUDED.permanently_deleted_folder_ids,
-         permanently_deleted_note_ids = EXCLUDED.permanently_deleted_note_ids,
-         permanently_deleted_url_ids = EXCLUDED.permanently_deleted_url_ids,
-         home_content = COALESCE(EXCLUDED.home_content, user_settings.home_content),
          updated_at = CURRENT_TIMESTAMP`,
       [
         userId,
@@ -383,9 +367,6 @@ async function saveUserData(userId, data) {
         settings.nightMode || 'auto',
         Date.now(),
         permanentlyDeletedFolderIds,
-        permanentlyDeletedNoteIds,
-        permanentlyDeletedUrlIds,
-        data.homeContent || '',
       ]
     );
 
@@ -422,9 +403,22 @@ async function updateUserData(userId, updates) {
  */
 async function deleteUserData(userId) {
   try {
-    // 由于外键约束，删除用户会自动删除相关数据
-    // 这里只需要删除设置
+    // 显式删除所有用户相关数据（即使有外键约束，也确保数据被完全清理）
+    // 按顺序删除，避免外键约束问题
+    
+    // 1. 删除 notes（notes 可能引用 folders）
+    await query('DELETE FROM notes WHERE user_id = $1', [userId]);
+    
+    // 2. 删除 urls（urls 可能引用 folders）
+    await query('DELETE FROM urls WHERE user_id = $1', [userId]);
+    
+    // 3. 删除 folders（folders 可能被 notes/urls 引用，但我们已经删除了它们）
+    await query('DELETE FROM folders WHERE user_id = $1', [userId]);
+    
+    // 4. 删除 user_settings
     await query('DELETE FROM user_settings WHERE user_id = $1', [userId]);
+    
+    logger.info('userDataDao', `已删除用户所有数据: userId=${userId}`);
     return true;
   } catch (error) {
     logger.error('userDataDao', '删除用户数据失败', error);
@@ -446,8 +440,6 @@ function formatFolder(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
-    version: row.version || 1,
-    password: row.password || undefined, // 隐私文件夹密码
   };
 }
 
@@ -465,7 +457,6 @@ function formatNote(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
-    version: row.version || 1,
   };
 }
 
@@ -483,7 +474,6 @@ function formatUrl(row) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
-    version: row.version || 1,
   };
 }
 
@@ -498,10 +488,7 @@ function formatSettings(row) {
       language: row.language || 'zh',
       nightMode: row.night_mode || 'auto',
     },
-    homeContent: row.home_content || '', // 首页大白框内容
     permanentlyDeletedFolderIds: row.permanently_deleted_folder_ids || [],
-    permanentlyDeletedNoteIds: row.permanently_deleted_note_ids || [],
-    permanentlyDeletedUrlIds: row.permanently_deleted_url_ids || [],
     lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).getTime() : null,
   };
 }
@@ -518,8 +505,6 @@ function getDefaultSettings() {
       nightMode: 'auto',
     },
     permanentlyDeletedFolderIds: [],
-    permanentlyDeletedNoteIds: [],
-    permanentlyDeletedUrlIds: [],
     lastSyncAt: null,
   };
 }
