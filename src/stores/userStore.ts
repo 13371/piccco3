@@ -9,16 +9,6 @@ import { useSettingsStore } from './settingsStore';
 // 辅助函数：动态获取API地址
 const getApiUrl = (endpoint: string) => {
   const baseUrl = getApiBaseUrlDynamic();
-  // 统一使用 v1 版本（推荐版本），确保API路径一致性
-  // 如果endpoint已经包含 /v1/，不再添加
-  if (endpoint.includes('/v1/')) {
-    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  }
-  // 如果endpoint是 /auth/、/admin/、/message/、/data/ 开头，添加 /v1 前缀
-  if (endpoint.startsWith('/auth/') || endpoint.startsWith('/admin/') || 
-      endpoint.startsWith('/message/') || endpoint.startsWith('/data/')) {
-    return `${baseUrl}/v1${endpoint}`;
-  }
   return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 };
 
@@ -45,7 +35,7 @@ interface UserState {
     password: string;
     code: string;
   }) => Promise<{ ok: boolean; message?: string }>;
-  sendRegisterCode: (email: string) => Promise<{ ok: boolean; message?: string; devCode?: string }>;
+  sendRegisterCode: (email: string) => Promise<{ ok: boolean; message?: string }>;
   changePassword: (
     email: string,
     newPassword: string,
@@ -126,145 +116,68 @@ export const useUserStore = create<UserState>()(
             return { ok: false, message: data.message || '登录失败' };
           }
 
-          // 检查是否是新用户或切换用户
-          const oldUser = get().currentUser;
-          const loginTimeKey = `piccco-login-time-${data.user.id}`;
-          const hasLoginRecord = localStorage.getItem(loginTimeKey);
-          const isNewUser = !hasLoginRecord;
-          const isSwitchingUser = oldUser && oldUser.id !== data.user.id;
+          // ========== 止血级修复：登录时完全清空所有前端状态 ==========
+          logger.log('[userStore] 登录成功，清空所有前端状态（止血级修复）');
           
-          // 只有切换用户时才清除旧用户数据，退出登录再登录（同一用户）不清除数据
-          if (isSwitchingUser) {
-            logger.log('[userStore] 切换用户，清除旧用户数据:', oldUser.id);
-            
-            // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧用户数据
-            localStorage.removeItem('piccco-data-storage');
-            localStorage.removeItem('piccco-message-storage');
-            localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
-            
-            // 初始化默认文件夹（确保只有3个默认文件夹）
-            const defaultFolders = [
-              {
-                id: 'folder_privacy_default',
-                name: '隐私',
-                type: 'privacy' as const,
-                color: 'purple' as const,
-                isStarred: false,
-                order: 0,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                password: undefined,
-                isDeleted: false,
-                deletedAt: null,
-              },
-              {
-                id: 'folder_category1_default',
-                name: '分类1',
-                type: 'normal' as const,
-                color: 'blue' as const,
-                isStarred: false,
-                order: 1,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                isDeleted: false,
-                deletedAt: null,
-              },
-              {
-                id: 'folder_category2_default',
-                name: '分类2',
-                type: 'normal' as const,
-                color: 'green' as const,
-                isStarred: false,
-                order: 2,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                isDeleted: false,
-                deletedAt: null,
-              },
-            ];
-            
-            // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
-            useDataStore.setState({
-              folders: defaultFolders,
-              notes: [],
-              urls: [],
-              trash: [],
-            });
-            
-            // 重置消息store
-            useMessageStore.setState({
-              messages: [],
-            });
-          } else if (isNewUser) {
-            // 新用户首次登录，但不清除可能存在的旧数据（可能是测试数据）
-            // 只记录登录时间，让 onRehydrateStorage 判断是否是新用户
-            logger.log('[userStore] 新用户首次登录，保留现有数据（如果有）');
+          // 1. 清空所有 localStorage（包括所有 piccco-* 存储）
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('piccco-')) {
+              keysToRemove.push(key);
+            }
           }
+          keysToRemove.forEach(key => {
+            logger.log('[userStore] 清除 localStorage:', key);
+            localStorage.removeItem(key);
+          });
           
-          // 保存登录时间（无论是否新用户或切换用户）
-          if (data.user?.id) {
-            const key = `piccco-login-time-${data.user.id}`;
-            localStorage.setItem(key, String(Date.now()));
-          }
-
+          // 2. 清空所有 store 状态
+          useDataStore.setState({
+            folders: [],
+            notes: [],
+            urls: [],
+            trash: [],
+            permanentlyDeletedFolderIds: new Set(),
+            pendingChanges: false,
+            isUploading: false,
+            isDownloading: false,
+            lastSyncTime: null,
+            syncError: null,
+            syncSuccess: false,
+            syncRetryCount: 0,
+            lastRetryTime: null,
+          });
+          
+          useMessageStore.setState({
+            messages: [],
+          });
+          
+          // 清空首页内容
+          const { useHomeContentStore } = await import('./homeContentStore');
+          useHomeContentStore.setState({
+            content: '',
+            isTyping: false,
+            lastSavedTime: 0,
+          });
+          
+          // 3. 设置用户信息
           set({
             currentUser: data.user,
             token: data.token,
             refreshToken: data.refreshToken || null,
           });
 
-          // 保存登录时间（如果之前没有保存）
-          if (data.user?.id) {
-            const key = `piccco-login-time-${data.user.id}`;
-            if (!localStorage.getItem(key)) {
-              localStorage.setItem(key, String(Date.now()));
-            }
-          }
-
-          // 登录后同步数据：优先使用服务器数据，确保多设备数据一致性
+          // 4. 登录后只从服务器拉取数据（完全覆盖，不合并）
+          logger.log('[userStore] 登录后从服务器拉取完整数据（完全覆盖本地）');
           setTimeout(async () => {
             const dataStore = useDataStore.getState();
+            // 强制优先使用服务器数据，完全覆盖本地
+            await dataStore.syncDataFromServer(0, true);
             
-            // 1. 先下载服务器数据（优先使用服务器最新数据）
-            // 这样可以确保B设备登录时使用的是服务器上的最新数据，而不是本地旧数据
-            logger.log('[userStore] 登录后从服务器下载最新数据（优先使用服务器数据）');
-            await dataStore.syncDataFromServer(0, true); // 第二个参数 true 表示优先使用服务器数据
-            
-            // 2. 合并后，检查是否有本地新数据需要上传
-            // 检查逻辑：本地有但服务器没有的数据（新创建的，还未同步）
-            const currentState = useDataStore.getState();
-            const serverSyncTime = currentState.lastSyncTime || 0;
-            
-            // 检查本地是否有新创建的数据（createdAt 或 updatedAt 在最后一次同步之后）
-            // 或者本地有但服务器没有的数据
-            const hasLocalNewData = 
-              (currentState.folders || []).some((f: any) => {
-                if (f.isDeleted) return false;
-                // 检查是否是本地新创建的（没有同步时间戳，或者更新时间在同步时间之后）
-                const itemTime = f.updatedAt || f.createdAt || 0;
-                return itemTime > serverSyncTime || !serverSyncTime;
-              }) ||
-              (currentState.notes || []).some((n: any) => {
-                if (n.isDeleted) return false;
-                const itemTime = n.updatedAt || n.createdAt || 0;
-                return itemTime > serverSyncTime || !serverSyncTime;
-              }) ||
-              (currentState.urls || []).some((u: any) => {
-                if (u.isDeleted) return false;
-                const itemTime = u.updatedAt || u.createdAt || 0;
-                return itemTime > serverSyncTime || !serverSyncTime;
-              });
-            
-            if (hasLocalNewData || currentState.pendingChanges) {
-              logger.log('[userStore] 检测到本地新数据，上传到服务器');
-              await dataStore.syncDataToServer();
-              // 上传后再次同步，确保数据一致（再次以服务器为准）
-              await dataStore.syncDataFromServer(0, true);
-            }
-            
-            // 同时加载设置
+            // 加载设置
             useSettingsStore.getState().loadSettingsFromServer();
-          }, 1000);
+          }, 500);
 
           return { ok: true };
         } catch (e) {
@@ -305,73 +218,50 @@ export const useUserStore = create<UserState>()(
 
           const data = await res.json();
 
-          // 新用户注册时，总是清除所有旧数据
-          logger.log('[userStore] 新用户注册，清除所有旧数据');
+          // ========== 止血级修复：注册时完全清空所有前端状态 ==========
+          logger.log('[userStore] 新用户注册，清空所有前端状态（止血级修复）');
           
-          // 先清除 localStorage，确保 onRehydrateStorage 不会恢复旧数据
-          localStorage.removeItem('piccco-data-storage');
-          localStorage.removeItem('piccco-message-storage');
-          localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
+          // 1. 清空所有 localStorage
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('piccco-')) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => {
+            logger.log('[userStore] 清除 localStorage:', key);
+            localStorage.removeItem(key);
+          });
           
-          // 初始化默认文件夹（确保只有3个默认文件夹）
-          const defaultFolders = [
-            {
-              id: 'folder_privacy_default',
-              name: '隐私',
-              type: 'privacy' as const,
-              color: 'purple' as const,
-              isStarred: false,
-              order: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              password: undefined,
-              isDeleted: false,
-              deletedAt: null,
-            },
-            {
-              id: 'folder_category1_default',
-              name: '分类1',
-              type: 'normal' as const,
-              color: 'blue' as const,
-              isStarred: false,
-              order: 1,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              isDeleted: false,
-              deletedAt: null,
-            },
-            {
-              id: 'folder_category2_default',
-              name: '分类2',
-              type: 'normal' as const,
-              color: 'green' as const,
-              isStarred: false,
-              order: 2,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              isDeleted: false,
-              deletedAt: null,
-            },
-          ];
-            
-            // 重置数据store - 确保回收站为空，文件夹只有3个默认文件夹
-            useDataStore.setState({
-              folders: defaultFolders,
+          // 2. 清空所有 store 状态
+          useDataStore.setState({
+            folders: [],
             notes: [],
             urls: [],
             trash: [],
+            permanentlyDeletedFolderIds: new Set(),
+            pendingChanges: false,
+            isUploading: false,
+            isDownloading: false,
+            lastSyncTime: null,
+            syncError: null,
+            syncSuccess: false,
+            syncRetryCount: 0,
+            lastRetryTime: null,
           });
           
-          // 重置消息store
           useMessageStore.setState({
             messages: [],
           });
           
-          // 先保存登录时间（在设置用户信息之前），确保 onRehydrateStorage 能正确识别新用户
-          if (data.user?.id) {
-            const key = `piccco-login-time-${data.user.id}`;
-            localStorage.setItem(key, String(Date.now()));
-          }
+          // 清空首页内容
+          const { useHomeContentStore } = await import('./homeContentStore');
+          useHomeContentStore.setState({
+            content: '',
+            isTyping: false,
+            lastSavedTime: 0,
+          });
 
           set({
             currentUser: data.user,
@@ -379,13 +269,13 @@ export const useUserStore = create<UserState>()(
             refreshToken: data.refreshToken || null,
           });
 
-          // 确保登录时间已保存
-          if (data.user?.id) {
-            const key = `piccco-login-time-${data.user.id}`;
-            if (!localStorage.getItem(key)) {
-              localStorage.setItem(key, String(Date.now()));
-            }
-          }
+          // 3. 注册后只从服务器拉取数据（完全覆盖）
+          logger.log('[userStore] 注册后从服务器拉取完整数据（完全覆盖本地）');
+          setTimeout(async () => {
+            const dataStore = useDataStore.getState();
+            await dataStore.syncDataFromServer(0, true);
+            useSettingsStore.getState().loadSettingsFromServer();
+          }, 500);
 
           return { ok: true };
         } catch (e) {
@@ -408,18 +298,7 @@ export const useUserStore = create<UserState>()(
             return { ok: false, message: data.message || '发送验证码失败' };
           }
 
-          // 开发模式：如果后端返回了 devCode，在控制台显示
-          if (data.devCode) {
-            console.log('\n========================================');
-            console.log('📧 验证码（开发模式）');
-            console.log('========================================');
-            console.log(`收件人: ${email}`);
-            console.log(`验证码: ${data.devCode}`);
-            console.log('有效期: 10 分钟');
-            console.log('========================================\n');
-          }
-
-          return { ok: true, devCode: data.devCode };
+          return { ok: true };
         } catch (e) {
           logger.error('[userStore] send code error:', e);
           return { ok: false, message: '网络错误，请稍后重试' };
@@ -485,10 +364,52 @@ export const useUserStore = create<UserState>()(
       },
       
       logout: () => {
-        // 退出登录时不清除数据，只清除用户状态
-        // 重要：不清除 piccco-login-time，这样重新登录时能识别是同一用户，不会误判为新用户
-        // 也不清除 piccco-data-storage 和 piccco-message-storage，数据会保留在 localStorage 中
-        // 只有在切换用户时才会清除旧用户的数据（在 login 函数中处理）
+        // ========== 止血级修复：登出时完全清空所有前端状态 ==========
+        logger.log('[userStore] 登出，清空所有前端状态（止血级修复）');
+        
+        // 1. 清空所有 localStorage
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('piccco-')) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          logger.log('[userStore] 清除 localStorage:', key);
+          localStorage.removeItem(key);
+        });
+        
+        // 2. 清空所有 store 状态
+        useDataStore.setState({
+          folders: [],
+          notes: [],
+          urls: [],
+          trash: [],
+          permanentlyDeletedFolderIds: new Set(),
+          pendingChanges: false,
+          isUploading: false,
+          isDownloading: false,
+          lastSyncTime: null,
+          syncError: null,
+          syncSuccess: false,
+          syncRetryCount: 0,
+          lastRetryTime: null,
+        });
+        
+        useMessageStore.setState({
+          messages: [],
+        });
+        
+        // 清空首页内容
+        import('./homeContentStore').then(({ useHomeContentStore }) => {
+          useHomeContentStore.setState({
+            content: '',
+            isTyping: false,
+            lastSavedTime: 0,
+          });
+        });
+        
         set({
           currentUser: null,
           token: null,
@@ -519,20 +440,15 @@ export const useUserStore = create<UserState>()(
             },
           });
           
-          // 如果返回401（用户不存在或已被注销），清除登录状态并退出
-          if (res.status === 401) {
-            logger.warn('[userStore] 用户不存在或已被注销，自动退出登录');
-            set({
-              currentUser: null,
-              token: null,
-              refreshToken: null,
-            });
-            // 清除所有本地存储
-            localStorage.removeItem('piccco-data-storage');
-            localStorage.removeItem('piccco-message-storage');
-            localStorage.removeItem('piccco-user-storage');
-            localStorage.removeItem('piccco-home-content-storage'); // 清除首页内容
-            return true;
+          // ========== 止血级修复：401时自动登出并清空所有状态 ==========
+          if (res.status === 401 || res.status === 403) {
+            logger.warn('[userStore] Token失效或用户不存在（401/403），自动登出并清空所有状态');
+            get().logout(); // 使用 logout 方法清空所有状态
+            // 跳转到登录页
+            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
+            return false;
           }
           
           if (res.ok) {
@@ -542,11 +458,8 @@ export const useUserStore = create<UserState>()(
             
             if (isNowBanned) {
               // 用户被封禁，清除登录状态
-        set({
-          currentUser: null,
-          token: null,
-          refreshToken: null,
-        });
+              logger.warn('[userStore] 用户被封禁，自动登出');
+              get().logout();
               return true;
             }
             
@@ -723,76 +636,11 @@ export const useUserStore = create<UserState>()(
           const data = await res.json();
           logger.log('[userStore] 注销账户成功:', data);
 
-          // 注销成功，清除所有数据并初始化
-          const currentUser = state.currentUser;
-          if (currentUser?.id) {
-            // 清除登录时间记录
-            localStorage.removeItem(`piccco-login-time-${currentUser.id}`);
-          }
-
-          // 清除所有本地存储
-          localStorage.removeItem('piccco-data-storage');
-          localStorage.removeItem('piccco-message-storage');
-          localStorage.removeItem('piccco-user-storage');
-
-          // 初始化默认文件夹
-          const defaultFolders = [
-            {
-              id: 'folder_privacy_default',
-              name: '隐私',
-              type: 'privacy' as const,
-              color: 'purple' as const,
-              isStarred: false,
-              order: 0,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              password: undefined,
-              isDeleted: false,
-              deletedAt: null,
-            },
-            {
-              id: 'folder_category1_default',
-              name: '分类1',
-              type: 'normal' as const,
-              color: 'blue' as const,
-              isStarred: false,
-              order: 1,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              isDeleted: false,
-              deletedAt: null,
-            },
-            {
-              id: 'folder_category2_default',
-              name: '分类2',
-              type: 'normal' as const,
-              color: 'green' as const,
-              isStarred: false,
-              order: 2,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              isDeleted: false,
-              deletedAt: null,
-            },
-          ];
-
-          // 重置所有store
-          useDataStore.setState({
-            folders: defaultFolders,
-            notes: [],
-            urls: [],
-            trash: [],
-          });
-          useMessageStore.setState({
-            messages: [],
-          });
-
-          // 清除用户信息
-        set({
-          currentUser: null,
-          token: null,
-          refreshToken: null,
-        });
+          // ========== 止血级修复：注销账号时完全清空所有前端状态 ==========
+          logger.log('[userStore] 注销账号成功，清空所有前端状态（止血级修复）');
+          
+          // 使用 logout 方法清空所有状态
+          get().logout();
 
           return { ok: true, message: '账户注销成功' };
         } catch (e) {

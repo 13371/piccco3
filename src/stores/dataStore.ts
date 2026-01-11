@@ -73,6 +73,18 @@ const TRASH_EXPIRY_DAYS = 30;
 const TRASH_EXPIRY_MS = TRASH_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
 /**
+ * 规范化数据项，确保 createdAt 和 updatedAt 始终存在
+ */
+function normalizeItem<T extends { id: string; createdAt?: number; updatedAt?: number }>(item: T): T {
+  const now = Date.now();
+  return {
+    ...item,
+    createdAt: item.createdAt || now,
+    updatedAt: item.updatedAt || now,
+  };
+}
+
+/**
  * 清理重复记录：只保留 updatedAt 最大的一条
  * 强制要求：确保 id 唯一性（模拟 UNIQUE(userId, id) 约束）
  * 绝对不允许创建新记录，只允许更新同一个 id 的那条记录
@@ -1226,27 +1238,11 @@ export const useDataStore = create<DataState>()(
                 return;
               }
               
-              // 合并服务器数据和本地数据
-              // 使用服务器数据为主，但保留本地未同步的数据
+              // ========== 止血级修复：完全用服务器数据覆盖，禁止合并 ==========
+              logger.log('[dataStore] 从服务器同步数据（完全覆盖本地，禁止合并）');
+              
+              // 获取永久删除的文件夹ID（需要保留，防止恢复）
               const localData = get();
-              
-              // 基于 isDeleted 字段获取本地已删除的文件夹ID列表
-              const localDeletedFolderIds = new Set<string>(
-                localData.folders
-                  .filter((f: Folder) => f.isDeleted)
-                  .map((f: Folder) => f.id)
-              );
-              
-              // 基于 isDeleted 字段获取服务器已删除的文件夹ID列表
-              const serverDeletedFolderIds = new Set<string>(
-                (serverData.folders || [])
-                  .filter((f: Folder) => f.isDeleted)
-                  .map((f: Folder) => f.id)
-              );
-              
-              // 关键修复：合并所有已删除的文件夹ID（本地和服务器），并包含永久删除的文件夹ID
-              // 永久删除的文件夹ID永远不会被恢复
-              // 确保 permanentlyDeletedFolderIds 是 Set 类型
               let permanentlyDeletedIds: Set<string>;
               if (localData.permanentlyDeletedFolderIds instanceof Set) {
                 permanentlyDeletedIds = localData.permanentlyDeletedFolderIds;
@@ -1256,246 +1252,37 @@ export const useDataStore = create<DataState>()(
                 permanentlyDeletedIds = new Set<string>();
               }
               
-              // 合并所有已删除的文件夹ID（包括永久删除的）
-              const allDeletedFolderIds = new Set<string>([
-                ...localDeletedFolderIds,
-                ...serverDeletedFolderIds,
-                ...Array.from(permanentlyDeletedIds), // 永久删除的文件夹ID
-              ]);
-                
-                // 如果服务器返回的folders中包含永久删除的文件夹，记录警告
-                const restoredPermanentlyDeleted = (serverData.folders || []).filter(
-                  (folder: Folder) => permanentlyDeletedIds.has(folder.id)
-                );
-                if (restoredPermanentlyDeleted.length > 0) {
-                  logger.error('[dataStore] 警告：服务器返回了已永久删除的文件夹，将被移除:', {
-                    count: restoredPermanentlyDeleted.length,
-                    ids: restoredPermanentlyDeleted.map((f: Folder) => f.id),
-                  });
-                }
-                
-                // 关键修复：不要预先过滤已删除的文件夹，让 mergeItem 根据 updatedAt 和删除状态来判断
-                // 这样可以确保：
-                // 1. 如果本地已删除（isDeleted=true, updatedAt=删除时间），即使服务器返回未删除的版本，也保留本地删除状态
-                // 2. 如果服务器已删除（isDeleted=true, updatedAt=删除时间），且时间更新，使用服务器删除状态
-                // 3. 永久删除的文件夹永远不会被恢复（在 mergeArrays 中过滤）
-                
-                // 调试日志：检查已删除的文件夹
-                if (allDeletedFolderIds.size > 0) {
-                  const localDeletedCount = localDeletedFolderIds.size;
-                  const serverDeletedCount = serverDeletedFolderIds.size;
-                  logger.log('[dataStore] 同步时检测到已删除的文件夹:', {
-                    localDeleted: localDeletedCount,
-                    serverDeleted: serverDeletedCount,
-                    permanentlyDeleted: permanentlyDeletedIds.size,
-                    allDeleted: allDeletedFolderIds.size,
-                  });
-                }
-                
-                // 强制要求：同步唯一判断标准是 updatedAt
-                // 合并策略：严格按照 updatedAt 判断，但已删除的项有特殊处理
-                // 注意：这里不预先过滤 isDeleted，让 mergeArrays 和 mergeItem 根据 updatedAt 和删除状态来判断
-                // mergeItem 已经修复，会优先保留已删除的状态（如果 updatedAt 是删除时间）
-                const mergedFolders = mergeArrays(
-                  localData.folders, // 包含所有文件夹（包括已删除的），让 mergeItem 判断
-                  serverData.folders || [], // 包含所有文件夹（包括已删除的），让 mergeItem 判断
-                  permanentlyDeletedIds, // 只传入永久删除的文件夹ID集合，在合并时过滤
-                  true // 强制优先使用服务器数据
-                );
-                
-                // 同步后，过滤掉已删除的文件夹（只保留活跃的文件夹用于显示）
-                // 但已删除的文件夹仍然保存在 store 中，只是不显示
-                const activeFolders = mergedFolders.filter((f) => !f.isDeleted);
-                logger.log('[dataStore] 合并后的文件夹:', {
-                  total: mergedFolders.length,
-                  active: activeFolders.length,
-                  deleted: mergedFolders.filter((f) => f.isDeleted).length,
-                });
-                
-                // 合并笔记和网址（一切以服务器为准）
-                const mergedNotes = mergeArrays(localData.notes, serverData.notes || [], undefined, true);
-                const mergedUrls = mergeArrays(localData.urls, serverData.urls || [], undefined, true);
-                
-                // 检查是否有重复的 id（确保 id 唯一性）
-                const folderIds = new Set<string>();
-                const duplicateFolderIds = new Set<string>();
-                mergedFolders.forEach((folder) => {
-                  if (folderIds.has(folder.id)) {
-                    duplicateFolderIds.add(folder.id);
-                  } else {
-                    folderIds.add(folder.id);
-                  }
-                });
-                
-                if (duplicateFolderIds.size > 0) {
-                  logger.error('[dataStore] 检测到重复的文件夹ID:', Array.from(duplicateFolderIds));
-                  // 去重：使用 mergeItem 逻辑，确保已删除的文件夹不会被未删除的版本覆盖
-                  const folderMap = new Map<string, Folder>();
-                  mergedFolders.forEach((folder) => {
-                    const existing = folderMap.get(folder.id);
-                    if (!existing) {
-                      folderMap.set(folder.id, folder);
-                    } else {
-                      // 使用 mergeItem 逻辑去重，确保一切以服务器为准
-                      const merged = mergeItem(existing, folder, true); // 强制优先使用服务器数据
-                      folderMap.set(folder.id, merged);
-                    }
-                  });
-                  const deduplicatedFolders = Array.from(folderMap.values());
-                  logger.warn('[dataStore] 已去重文件夹，使用 mergeItem 逻辑:', {
-                    before: mergedFolders.length,
-                    after: deduplicatedFolders.length,
-                    duplicateIds: Array.from(duplicateFolderIds),
-                  });
-                  // 使用去重后的数据
-                  mergedFolders.length = 0;
-                  mergedFolders.push(...deduplicatedFolders);
-                }
-                
-                // 保留 trash 数组（向后兼容），但不再使用它进行同步
-                // 实际的数据同步基于 isDeleted 字段
-                
-                // 重要：这里不应该过滤已删除的文件夹！
-                // 已删除的文件夹需要保留在数据中，以便：
-                // 1. 回收站可以显示（isDeleted = true）
-                // 2. 多设备同步可以正常工作
-                // 3. 列表查询时会自动过滤（isDeleted = false）
-                // 只过滤永久删除的文件夹
-                const finalMergedFolders = mergedFolders.filter(
-                  (folder: Folder) => !permanentlyDeletedIds.has(folder.id)
-                );
-                
-                // 检查：合并后的folders中已删除的文件夹（这是正常的，用于回收站显示）
-                const deletedFoldersInMerged = finalMergedFolders.filter(
-                  (folder: Folder) => folder.isDeleted
-                );
-                if (deletedFoldersInMerged.length > 0) {
-                  logger.log('[dataStore] 合并后的folders中包含已删除的文件夹（正常，用于回收站）:', {
-                    count: deletedFoldersInMerged.length,
-                    ids: deletedFoldersInMerged.map((f: Folder) => f.id),
-                  });
-                }
-                
-                // 如果最终过滤掉了文件夹，记录日志
-                if (finalMergedFolders.length !== mergedFolders.length) {
-                  logger.warn('[dataStore] 最终安全检查：移除了已删除的文件夹', {
-                    before: mergedFolders.length,
-                    after: finalMergedFolders.length,
-                    removed: mergedFolders.length - finalMergedFolders.length,
-                  });
-                }
-                
-                // 检查是否有已删除的项（用于调试）
-                const localDeletedCount = localData.folders.filter((f: Folder) => f.isDeleted).length +
-                                         localData.notes.filter((n: Note) => n.isDeleted).length +
-                                         localData.urls.filter((u: Url) => u.isDeleted).length;
-                const serverDeletedCount = (serverData.folders || []).filter((f: Folder) => f.isDeleted).length +
-                                          (serverData.notes || []).filter((n: Note) => n.isDeleted).length +
-                                          (serverData.urls || []).filter((u: Url) => u.isDeleted).length;
-                if (localDeletedCount > 0 || serverDeletedCount > 0) {
-                  logger.log('[dataStore] 检测到已删除的项:', {
-                    local: { folders: localData.folders.filter((f: Folder) => f.isDeleted).length,
-                             notes: localData.notes.filter((n: Note) => n.isDeleted).length,
-                             urls: localData.urls.filter((u: Url) => u.isDeleted).length },
-                    server: { folders: (serverData.folders || []).filter((f: Folder) => f.isDeleted).length,
-                              notes: (serverData.notes || []).filter((n: Note) => n.isDeleted).length,
-                              urls: (serverData.urls || []).filter((u: Url) => u.isDeleted).length },
-                  });
-                }
-                
-                // 最终验证：确保合并后的 folders 中不包含任何已删除的文件夹
-                // 这是最后的防线，防止任何边缘情况
-                // 基于 isDeleted 字段和永久删除列表进行最终过滤
-                const allDeletedIds = new Set<string>([
-                  ...Array.from(allDeletedFolderIds), // 已包含永久删除的文件夹ID
-                  ...Array.from(permanentlyDeletedIds), // 再次确保永久删除的文件夹ID被包含
-                ]);
-                
-                // 重要：同步时必须保留所有数据（包括已删除的），以便：
-                // 1. 回收站可以显示（isDeleted = true）
-                // 2. 多设备同步可以正常工作
-                // 3. 列表查询时会自动过滤（isDeleted = false）
-                // 只过滤永久删除的文件夹
-                const finalVerifiedFolders = finalMergedFolders.filter(
-                  (folder: Folder) => !permanentlyDeletedIds.has(folder.id)
-                );
-                
-                // 检查是否有永久删除的文件夹被恢复
-                const restoredPermanentlyDeletedFinal = finalMergedFolders.filter(
-                  (folder: Folder) => permanentlyDeletedIds.has(folder.id)
-                );
-                if (restoredPermanentlyDeletedFinal.length > 0) {
-                  logger.error('[dataStore] 严重错误：永久删除的文件夹被恢复了，强制移除:', {
-                    count: restoredPermanentlyDeletedFinal.length,
-                    ids: restoredPermanentlyDeletedFinal.map((f: Folder) => f.id),
-                  });
-                }
-                
-                // 统计已删除的项（用于调试）
-                const deletedFoldersCount = finalVerifiedFolders.filter((f: Folder) => f.isDeleted).length;
-                const deletedNotesCount = mergedNotes.filter((n: Note) => n.isDeleted).length;
-                const deletedUrlsCount = mergedUrls.filter((u: Url) => u.isDeleted).length;
-                
-                // 关键修复：在保存前，检查是否有本地已删除的文件夹被恢复
-                // 如果有，强制重新标记为已删除
-                const localDeletedBeforeSync = new Set<string>(
-                  localData.folders
-                    .filter((f: Folder) => f.isDeleted && f.deletedAt)
-                    .map((f: Folder) => f.id)
-                );
-                
-                // 检查合并后的文件夹，如果有本地已删除的文件夹变成了未删除，强制恢复删除状态
-                const restoredFolders: Folder[] = [];
-                finalVerifiedFolders.forEach((folder: Folder) => {
-                  if (localDeletedBeforeSync.has(folder.id) && !folder.isDeleted) {
-                    // 本地已删除，但合并后变成了未删除，强制恢复删除状态
-                    const originalDeleted = localData.folders.find((f: Folder) => f.id === folder.id);
-                    if (originalDeleted && originalDeleted.isDeleted && originalDeleted.deletedAt) {
-                      restoredFolders.push({
-                        ...folder,
-                        isDeleted: true,
-                        deletedAt: originalDeleted.deletedAt,
-                        updatedAt: originalDeleted.updatedAt || originalDeleted.deletedAt,
-                      });
-                      logger.error('[dataStore] 检测到已删除的文件夹被恢复，强制重新标记为已删除:', {
-                        id: folder.id,
-                        name: folder.name,
-                        originalDeletedAt: originalDeleted.deletedAt,
-                      });
-                    }
-                  }
-                });
-                
-                // 如果有被恢复的文件夹，替换它们
-                const finalFolders = finalVerifiedFolders.map((folder: Folder) => {
-                  const restored = restoredFolders.find((r: Folder) => r.id === folder.id);
-                  return restored || folder;
-                });
-                
-                // 强制要求：同步逻辑（保留所有数据）
-                // 使用 deduplicateById 确保 id 唯一性
-                set({
-                  folders: deduplicateById(finalFolders), // 包含已删除的文件夹（isDeleted = true），列表查询时会过滤
-                  notes: deduplicateById(mergedNotes), // 包含已删除的笔记（isDeleted = true），列表查询时会过滤
-                  urls: deduplicateById(mergedUrls), // 包含已删除的网址（isDeleted = true），列表查询时会过滤
-                  trash: [], // 保留 trash 数组（向后兼容），但不再使用
-                  lastSyncTime: serverData.lastSyncAt || Date.now(),
-                  isDownloading: false,
-                  syncError: null,
-                  syncSuccess: true,
-                  syncRetryCount: 0, // 重置重试计数
-                  lastRetryTime: null,
-                });
-                
-                if (restoredFolders.length > 0) {
-                  logger.warn('[dataStore] 已强制恢复', restoredFolders.length, '个已删除文件夹的删除状态');
-                }
-                
-                logger.log('[dataStore] 从服务器同步完成（包含已删除的项）:', {
-                  folders: { total: finalVerifiedFolders.length, deleted: deletedFoldersCount, active: finalVerifiedFolders.length - deletedFoldersCount },
-                  notes: { total: mergedNotes.length, deleted: deletedNotesCount, active: mergedNotes.length - deletedNotesCount },
-                  urls: { total: mergedUrls.length, deleted: deletedUrlsCount, active: mergedUrls.length - deletedUrlsCount },
-                });
+              // 完全使用服务器数据，只过滤永久删除的文件夹
+              const serverFolders = (serverData.folders || []).filter(
+                (folder: Folder) => !permanentlyDeletedIds.has(folder.id)
+              );
+              const serverNotes = serverData.notes || [];
+              const serverUrls = serverData.urls || [];
+              
+              // 确保数据格式正确（normalizeItem）
+              const normalizedFolders = serverFolders.map((folder: any) => normalizeItem(folder));
+              const normalizedNotes = serverNotes.map((note: any) => normalizeItem(note));
+              const normalizedUrls = serverUrls.map((url: any) => normalizeItem(url));
+              
+              // 完全覆盖本地数据（服务器是唯一真相）
+              set({
+                folders: deduplicateById(normalizedFolders),
+                notes: deduplicateById(normalizedNotes),
+                urls: deduplicateById(normalizedUrls),
+                trash: [], // 保留 trash 数组（向后兼容），但不再使用
+                lastSyncTime: serverData.lastSyncAt || Date.now(),
+                isDownloading: false,
+                syncError: null,
+                syncSuccess: true,
+                syncRetryCount: 0,
+                lastRetryTime: null,
+              });
+              
+              logger.log('[dataStore] 从服务器同步完成（完全覆盖）:', {
+                folders: normalizedFolders.length,
+                notes: normalizedNotes.length,
+                urls: normalizedUrls.length,
+              });
                 
                 logger.log('[dataStore] 从服务器同步完成:', {
                   folders: finalVerifiedFolders.length,
@@ -1503,19 +1290,6 @@ export const useDataStore = create<DataState>()(
                   urls: mergedUrls.length,
                   deletedFolderIds: Array.from(allDeletedIds),
                 });
-                
-                // 同步首页内容（如果服务器返回了）
-                if (serverData.homeContent !== undefined) {
-                  const { useHomeContentStore } = await import('./homeContentStore');
-                  const homeContentStore = useHomeContentStore.getState();
-                  // 只有在用户不在输入时才更新，避免覆盖用户正在输入的内容
-                  if (!homeContentStore.isTyping) {
-                    homeContentStore.setContentWithoutSync(serverData.homeContent || '');
-                    logger.log('[dataStore] 从服务器同步首页内容:', serverData.homeContent?.substring(0, 50) || '(空)');
-                  } else {
-                    logger.log('[dataStore] 用户正在输入，跳过首页内容同步');
-                  }
-                }
                 
                 // 3秒后清除成功状态
                 setTimeout(() => {
@@ -1525,22 +1299,19 @@ export const useDataStore = create<DataState>()(
                 set({ isDownloading: false });
               }
             } else if (res.status === 401 || res.status === 403) {
-              // Token过期，尝试刷新Token
-              const refreshResult = await useUserStore.getState().refreshAccessToken();
-              if (refreshResult.ok) {
-                // 刷新成功，重试同步（一切以服务器为准）
-                logger.log('[dataStore] Token已刷新，重试同步');
-                return get().syncDataFromServer(0, true); // 强制优先使用服务器数据
-              } else {
-                // 刷新失败，清除登录状态
-                logger.warn('[dataStore] Token无效且刷新失败，清除登录状态');
-                set({ 
-                  isDownloading: false,
-                  syncError: '登录已过期，请重新登录',
-                  syncSuccess: false,
-                });
-                useUserStore.getState().logout();
+              // ========== 止血级修复：401时自动登出并清空所有状态 ==========
+              logger.warn('[dataStore] Token失效（401/403），自动登出并清空所有状态');
+              set({ 
+                isDownloading: false,
+                syncError: '登录已过期，请重新登录',
+                syncSuccess: false,
+              });
+              useUserStore.getState().logout();
+              // 跳转到登录页
+              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.href = '/login';
               }
+              return;
             } else {
               let errorMessage = '同步失败';
               try {
@@ -1741,17 +1512,12 @@ export const useDataStore = create<DataState>()(
               });
             }
             
-            // 获取首页内容
-            const { useHomeContentStore } = await import('./homeContentStore');
-            const homeContent = useHomeContentStore.getState().content || '';
-            
             const dataToSync = {
               folders: foldersToSync,
               notes: notesToSync,
               urls: urlsToSync,
               trash: [], // 保留 trash 数组（向后兼容），但不再使用
               permanentlyDeletedFolderIds: Array.from(permanentlyDeletedIds), // 同步永久删除列表
-              homeContent: homeContent, // 同步首页内容
             };
             
             // 检查删除操作是否包含已删除的项
@@ -1915,23 +1681,20 @@ export const useDataStore = create<DataState>()(
                   });
                 }
               } else if (res.status === 401 || res.status === 403) {
-                // Token过期，尝试刷新Token
-                const refreshResult = await useUserStore.getState().refreshAccessToken();
-                if (refreshResult.ok) {
-                  // 刷新成功，重试同步
-                  logger.log('[dataStore] Token已刷新，重试同步');
-                  return get().syncDataToServer();
-                } else {
-                  // 刷新失败，清除登录状态
-                  clearTimeout(timeoutProtection);
-                  logger.warn('[dataStore] Token无效且刷新失败，清除登录状态');
-                  set({ 
-                    isUploading: false,
-                    syncError: '登录已过期，请重新登录',
-                    syncSuccess: false,
-                  });
-                  useUserStore.getState().logout();
+                // ========== 止血级修复：401时自动登出并清空所有状态 ==========
+                clearTimeout(timeoutProtection);
+                logger.warn('[dataStore] Token失效（401/403），自动登出并清空所有状态');
+                set({ 
+                  isUploading: false,
+                  syncError: '登录已过期，请重新登录',
+                  syncSuccess: false,
+                });
+                useUserStore.getState().logout();
+                // 跳转到登录页
+                if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                  window.location.href = '/login';
                 }
+                return;
               } else {
                 clearTimeout(timeoutProtection);
                 let errorData = {};

@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 
 const { sendVerificationCodeEmail } = require('../config/mailer');
 const { generateCode, saveCode, verifyCode, codes, normalizeEmail } = require('../store/verificationStore');
-const { userStoreAdapter } = require('../store/storageAdapter');
+const { createUser, findUserByEmail, verifyPassword, updatePassword, deleteUser, findUserById, updateUser } = require('../store/userStore');
 
 const router = express.Router();
 
@@ -125,18 +125,12 @@ router.post('/send-code', sendCodeLimiter, async (req, res) => {
     logger.info('auth', `验证码已发送到 ${email}，key=${emailKey}`);
     res.json({ message: '验证码已发送到您的邮箱，请查收' });
   } catch (e) {
-    logger.error('auth', 'send-code error:', {
-      message: e.message,
-      stack: e.stack,
-      name: e.name,
-      email: email,
-    });
+    logger.error('auth', 'send-code error:', e);
     const errorMessage = e.message || '发送验证码失败，请稍后重试';
-    const isSmtpError = errorMessage.includes('SMTP') || errorMessage.includes('邮件服务') || errorMessage.includes('未配置');
     res.status(500).json({ 
-      message: isSmtpError 
+      message: errorMessage.includes('SMTP') 
         ? '邮件服务未配置，请联系管理员' 
-        : '发送验证码失败，请稍后重试'
+        : errorMessage 
     });
   }
 });
@@ -192,16 +186,7 @@ router.post('/register', registerLimiter, async (req, res) => {
 
   // 验证码正确，尝试创建用户
   try {
-    // 检查邮箱是否已存在
-    const existingUser = await userStoreAdapter.findUserByEmail(emailKey);
-    if (existingUser) {
-      logger.warn('auth', `注册失败: 邮箱已存在 ${email} (key=${emailKey})`);
-      return res.status(400).json({ message: '该邮箱已被注册，请直接登录或使用其他邮箱' });
-    }
-    
-    const userId = Date.now().toString();
-    const createdAt = new Date().toISOString();
-    const user = await userStoreAdapter.createUser({ id: userId, email: emailKey, username, password, createdAt });
+    const user = await createUser({ email: emailKey, username, password });
     // 只有注册成功后才删除验证码
     codes.delete(emailKey);
     logger.info('auth', `用户注册成功: ${email} (key=${emailKey}), 验证码已删除`);
@@ -250,19 +235,16 @@ router.post('/login', loginLimiter, async (req, res) => {
     return res.status(400).json({ message: '密码格式不正确' });
   }
   
-  // 规范化邮箱（与注册时保持一致）
-  const emailKey = normalizeEmail(email);
-  
   // 减少敏感信息日志（生产环境不记录邮箱）
   if (process.env.NODE_ENV !== 'production') {
-    logger.debug('auth', 'login request:', { email: emailKey.substring(0, 3) + '***', passwordProvided: !!password });
+    logger.debug('auth', 'login request:', { email: email.substring(0, 3) + '***', passwordProvided: !!password });
   }
 
   try {
-    const user = await userStoreAdapter.findUserByEmail(emailKey);
+    const user = await findUserByEmail(email);
     if (!user) {
       // 不泄露用户是否存在的信息，统一错误消息
-      logger.warn('auth', `登录失败: 用户不存在 ${email.substring(0, 3)}***`);
+      logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
       return res.status(400).json({ message: '邮箱或密码错误' });
     }
 
@@ -274,17 +256,10 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
-    // 记录密码验证开始
-    logger.debug('auth', `开始验证密码: ${email.substring(0, 3)}***`, {
-      hasPassword: !!user.password,
-      passwordPrefix: user.password ? user.password.substring(0, 10) : 'none',
-      passwordLength: user.password ? user.password.length : 0,
-    });
-
-    const ok = await userStoreAdapter.verifyPassword(user, password);
+    const ok = await verifyPassword(user, password);
     if (!ok) {
       // 不泄露密码错误信息，统一错误消息
-      logger.warn('auth', `登录失败: 密码验证失败 ${email.substring(0, 3)}***`);
+      logger.warn('auth', `登录失败: ${email.substring(0, 3)}***`);
       return res.status(400).json({ message: '邮箱或密码错误' });
     }
 
@@ -306,12 +281,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       },
     });
   } catch (e) {
-    logger.error('auth', 'login error:', {
-      message: e.message,
-      stack: e.stack,
-      name: e.name,
-      ...(e.code && { code: e.code }),
-    });
+    logger.error('auth', 'login error:', e);
     res.status(500).json({ message: '登录失败，请稍后重试' });
   }
 });
@@ -374,7 +344,7 @@ router.post('/change-password', sendCodeLimiter, async (req, res) => {
   }
 
   try {
-    await userStoreAdapter.updatePassword(emailKey, newPassword);
+    await updatePassword(emailKey, newPassword);
     res.json({ message: '密码修改成功' });
   } catch (e) {
     logger.error('auth', 'change-password error:', e);
@@ -474,11 +444,9 @@ router.get('/me', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     
     // 验证用户是否存在
-    const user = await userStoreAdapter.findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
-      // 用户不存在（可能已被注销），返回401让前端自动退出
-      logger.warn('auth', `Token有效但用户不存在: userId=${userId}`);
-      return res.status(401).json({ message: '用户不存在或已被注销' });
+      return res.status(404).json({ message: '用户不存在' });
     }
     
     // 返回用户信息（排除密码）
@@ -499,7 +467,7 @@ router.patch('/me', authenticateToken, async (req, res) => {
     const { username, avatar } = req.body;
     
     // 验证用户是否存在
-    const user = await userStoreAdapter.findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -530,7 +498,7 @@ router.patch('/me', authenticateToken, async (req, res) => {
     }
 
     // 更新用户信息
-    const updatedUser = await userStoreAdapter.updateUser(userId, updates);
+    const updatedUser = updateUser(userId, updates);
     logger.info('auth', `用户信息已更新: ${user.email} (ID: ${userId})`, updates);
     
     // 返回更新后的用户信息（排除密码）
@@ -548,7 +516,7 @@ router.delete('/account', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     
     // 验证用户是否存在
-    const user = await userStoreAdapter.findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return res.status(404).json({ message: '用户不存在' });
     }
@@ -561,33 +529,8 @@ router.delete('/account', authenticateToken, async (req, res) => {
       });
     }
 
-    // 删除用户所有相关数据（按顺序删除，避免外键约束问题）
-    try {
-      // 1. 删除用户数据（folders, notes, urls, settings）
-      await userStoreAdapter.deleteUserData(userId);
-      logger.info('auth', `已删除用户数据: ${user.email} (ID: ${userId})`);
-    } catch (e) {
-      logger.error('auth', `删除用户数据失败: ${user.email} (ID: ${userId})`, e);
-    }
-    
-    try {
-      // 2. 删除用户消息
-      await userStoreAdapter.deleteUserMessages(userId);
-      logger.info('auth', `已删除用户消息: ${user.email} (ID: ${userId})`);
-    } catch (e) {
-      logger.error('auth', `删除用户消息失败: ${user.email} (ID: ${userId})`, e);
-    }
-    
-    try {
-      // 3. 删除用户消息历史
-      await userStoreAdapter.deleteUserHistory(userId);
-      logger.info('auth', `已删除用户消息历史: ${user.email} (ID: ${userId})`);
-    } catch (e) {
-      logger.error('auth', `删除用户消息历史失败: ${user.email} (ID: ${userId})`, e);
-    }
-    
-    // 4. 最后删除用户账户（这会触发外键约束的级联删除，作为双重保险）
-    await userStoreAdapter.deleteUser(userId);
+    // 删除用户账户
+    await deleteUser(userId);
     logger.info('auth', `用户账户已注销: ${user.email} (ID: ${userId})`);
     
     res.json({ message: '账户注销成功' });

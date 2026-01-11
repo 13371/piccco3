@@ -2,21 +2,18 @@
 const { query, beginTransaction, commitTransaction, rollbackTransaction } = require('../config');
 const logger = require('../../utils/logger');
 const cache = require('../../utils/cache');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 
 /**
  * 创建用户
  */
 async function createUser({ id, email, username, password, createdAt }) {
   try {
-    // 对密码进行 bcrypt 哈希处理
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
     await query(
       `INSERT INTO users (id, email, username, password, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $5)
        ON CONFLICT (id) DO NOTHING`,
-      [id, email, username, hashedPassword, createdAt || new Date().toISOString()]
+      [id, email, username, password, createdAt || new Date().toISOString()]
     );
     
     const result = await query('SELECT * FROM users WHERE id = $1', [id]);
@@ -180,17 +177,6 @@ async function unbanUser(userId) {
  */
 async function deleteUser(userId) {
   try {
-    // 先查找用户信息（用于清除缓存）
-    const user = await findUserById(userId);
-    
-    // 清除用户相关的缓存
-    if (user) {
-      cache.del(`user:id:${userId}`);
-      if (user.email) {
-        cache.del(`user:email:${user.email}`);
-      }
-    }
-    
     // 由于外键约束，删除用户会自动删除相关数据
     await query('DELETE FROM users WHERE id = $1', [userId]);
     return true;
@@ -205,14 +191,11 @@ async function deleteUser(userId) {
  */
 async function updatePassword(email, newPassword) {
   try {
-    // 对密码进行 bcrypt 哈希处理
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
     await query(
       `UPDATE users 
        SET password = $1, updated_at = CURRENT_TIMESTAMP
        WHERE email = $2`,
-      [hashedPassword, email]
+      [newPassword, email]
     );
     
     // 清除缓存
