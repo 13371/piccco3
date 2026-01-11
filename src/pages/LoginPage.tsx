@@ -135,13 +135,6 @@ const LoginPage = () => {
       return;
     }
 
-    // 开发模式：如果返回了验证码，显示提示
-    if (result.devCode) {
-      setError(`验证码已发送！开发模式验证码：${result.devCode}（已显示在控制台）`);
-      // 3秒后清除提示
-      setTimeout(() => setError(''), 3000);
-    }
-
     setCountdown(60);
   };
 
