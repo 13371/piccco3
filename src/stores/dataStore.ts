@@ -200,60 +200,7 @@ function mergeItem<T extends { id: string; updatedAt?: number; isDeleted?: boole
  * 4. 禁止写 note.isDeleted = incoming.isDeleted || false
  * @param deletedIds 已删除的ID集合（用于过滤，防止恢复已删除的项）
  */
-/**
- * 合并数组
- * 强制要求：一切数据以服务器为准
- * 1. 先添加服务器数据（优先）
- * 2. 再添加本地数据，如果服务器没有该数据，才保留本地数据（新创建的）
- * 3. 如果两者都有，优先使用服务器数据
- */
-function mergeArrays<T extends { id: string; updatedAt?: number; isDeleted?: boolean }>(
-  local: T[],
-  server: T[],
-  deletedIds?: Set<string>,
-  prioritizeServer: boolean = true  // 默认优先使用服务器数据
-): T[] {
-  const map = new Map<string, T>();
-  
-  // 优化：强制服务器数据优先策略
-  // 第一步：先添加服务器数据（强制优先），但排除已删除的项（永久删除列表）
-  server.forEach((item) => {
-    // 如果该项在永久删除列表中，直接跳过
-    if (deletedIds && deletedIds.has(item.id)) {
-      return;
-    }
-    // 服务器数据优先，直接设置（强制使用服务器数据）
-    map.set(item.id, item);
-  });
-  
-  // 第二步：再添加本地数据，但只在服务器没有该数据时才保留
-  // 如果服务器已有该数据，强制使用服务器数据（不合并）
-  local.forEach((item) => {
-    // 如果该项在永久删除列表中，直接跳过
-    if (deletedIds && deletedIds.has(item.id)) {
-      return;
-    }
-    
-    const existing = map.get(item.id);
-    if (!existing) {
-      // 本地有但服务器没有，添加本地数据（可能是新创建的，还未同步）
-      map.set(item.id, item);
-    } else {
-      // 两者都有，强制使用服务器数据（不合并，直接使用服务器数据）
-      // 这确保服务器数据始终是权威来源
-      if (prioritizeServer) {
-        // 强制使用服务器数据，不合并
-        map.set(item.id, existing);
-      } else {
-        // 特殊情况：如果 prioritizeServer = false，使用 mergeItem 合并
-        const merged = mergeItem(item, existing, prioritizeServer);
-        map.set(item.id, merged);
-      }
-    }
-  });
-  
-  return Array.from(map.values());
-}
+// mergeArrays 函数已删除 - 在"止血级修复"中，改为完全用服务器数据覆盖，不再需要合并逻辑
 
 // 防抖同步函数（优化：缩短延迟时间，确保数据变动后快速同步）
 let uploadSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1283,18 +1230,11 @@ export const useDataStore = create<DataState>()(
                 notes: normalizedNotes.length,
                 urls: normalizedUrls.length,
               });
-                
-                logger.log('[dataStore] 从服务器同步完成:', {
-                  folders: finalVerifiedFolders.length,
-                  notes: mergedNotes.length,
-                  urls: mergedUrls.length,
-                  deletedFolderIds: Array.from(allDeletedIds),
-                });
-                
-                // 3秒后清除成功状态
-                setTimeout(() => {
-                  set({ syncSuccess: false });
-                }, 3000);
+              
+              // 3秒后清除成功状态
+              setTimeout(() => {
+                set({ syncSuccess: false });
+              }, 3000);
               } else {
                 set({ isDownloading: false });
               }
